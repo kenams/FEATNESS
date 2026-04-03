@@ -4,6 +4,9 @@ node_modules
 dist
 build
 coverage
+*.log
+*.err.log
+*.tsbuildinfo
 .env
 .env.local
 .env.*.local
