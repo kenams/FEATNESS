@@ -8,20 +8,29 @@ import type { ReadonlyRequestCookies } from "next/dist/server/web/spec-extension
 import type { DashboardProfile } from "@/lib/dashboard-shared";
 import { getSupabaseServiceRoleClient } from "@/lib/supabase-server";
 
-function getRequiredPublicEnv(name: string): string {
-  const value = process.env[name]?.trim() || "";
+function getRequiredEnvValue(value: string | undefined, name: string): string {
+  const normalized = value?.trim() || "";
 
-  if (!value) {
+  if (!normalized) {
     throw new Error(`${name} est requis pour le dashboard FEATNESS.`);
   }
 
-  return value;
+  return normalized;
 }
 
 function createServerAuthClient(cookieStore: ReadonlyRequestCookies) {
+  const supabaseUrl = getRequiredEnvValue(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    "NEXT_PUBLIC_SUPABASE_URL",
+  );
+  const supabaseAnonKey = getRequiredEnvValue(
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  );
+
   return createServerClient(
-    getRequiredPublicEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    getRequiredPublicEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -46,44 +55,30 @@ export async function getServerSession(
   return session;
 }
 
-export async function requireOwner(
-  cookieStore: ReadonlyRequestCookies,
-): Promise<{ user: User; profile: DashboardProfile }> {
-  const session = await getServerSession(cookieStore);
-
-  if (!session?.user) {
-    redirect("/login");
-  }
-
+async function getProfileForUser(
+  userId: string,
+  fallbackEmail: string,
+): Promise<DashboardProfile | null> {
   const serviceRole = getSupabaseServiceRoleClient();
   const { data: profileRow, error } = await serviceRole
     .from("profiles")
     .select("id, email, full_name, role")
-    .eq("id", session.user.id)
+    .eq("id", userId)
     .maybeSingle();
 
   if (error || !profileRow) {
-    redirect("/login");
-  }
-
-  const role = profileRow.role as DashboardProfile["role"];
-
-  if (role !== "owner" && role !== "admin") {
-    redirect("/login");
+    return null;
   }
 
   return {
-    user: session.user,
-    profile: {
-      id: String(profileRow.id),
-      email: String(profileRow.email ?? session.user.email ?? ""),
-      fullName: (profileRow.full_name as string | null) ?? null,
-      role,
-    },
+    id: String(profileRow.id),
+    email: String(profileRow.email ?? fallbackEmail),
+    fullName: (profileRow.full_name as string | null) ?? null,
+    role: profileRow.role as DashboardProfile["role"],
   };
 }
 
-export async function getOwnerSessionOrNull(
+export async function getAuthenticatedContextOrNull(
   cookieStore: ReadonlyRequestCookies,
 ): Promise<{ user: User; profile: DashboardProfile } | null> {
   const session = await getServerSession(cookieStore);
@@ -92,30 +87,68 @@ export async function getOwnerSessionOrNull(
     return null;
   }
 
-  const serviceRole = getSupabaseServiceRoleClient();
-  const { data: profileRow, error } = await serviceRole
-    .from("profiles")
-    .select("id, email, full_name, role")
-    .eq("id", session.user.id)
-    .maybeSingle();
+  const profile = await getProfileForUser(
+    session.user.id,
+    session.user.email ?? "",
+  );
 
-  if (error || !profileRow) {
-    return null;
-  }
-
-  const role = profileRow.role as DashboardProfile["role"];
-
-  if (role !== "owner" && role !== "admin") {
+  if (!profile) {
     return null;
   }
 
   return {
     user: session.user,
-    profile: {
-      id: String(profileRow.id),
-      email: String(profileRow.email ?? session.user.email ?? ""),
-      fullName: (profileRow.full_name as string | null) ?? null,
-      role,
-    },
+    profile,
   };
+}
+
+export async function requireAuthenticated(
+  cookieStore: ReadonlyRequestCookies,
+): Promise<{ user: User; profile: DashboardProfile }> {
+  const context = await getAuthenticatedContextOrNull(cookieStore);
+
+  if (!context) {
+    redirect("/login");
+  }
+
+  return context;
+}
+
+export async function requireOwner(
+  cookieStore: ReadonlyRequestCookies,
+): Promise<{ user: User; profile: DashboardProfile }> {
+  const context = await requireAuthenticated(cookieStore);
+  const role = context.profile.role;
+
+  if (role !== "owner" && role !== "admin") {
+    redirect("/login");
+  }
+
+  return context;
+}
+
+export async function getOwnerSessionOrNull(
+  cookieStore: ReadonlyRequestCookies,
+): Promise<{ user: User; profile: DashboardProfile } | null> {
+  const context = await getAuthenticatedContextOrNull(cookieStore);
+
+  if (!context) {
+    return null;
+  }
+
+  const role = context.profile.role;
+
+  if (role !== "owner" && role !== "admin") {
+    return null;
+  }
+
+  return context;
+}
+
+export function getDefaultAppPath(role: DashboardProfile["role"]): string {
+  if (role === "owner" || role === "admin") {
+    return "/admin/overview";
+  }
+
+  return "/app";
 }

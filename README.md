@@ -2,111 +2,131 @@
 
 Le repas parfait apres ton effort.
 
-FEATNESS combine une app mobile, une borne de distribution et un dashboard B2B
-pour transformer une seance de sport en recommandation nutritionnelle payable
-et distribuable sur place.
+FEATNESS repose maintenant sur deux experiences complementaires :
+- une app mobile Expo pour le sportif
+- une app web unique pour l'utilisateur et l'administration
 
 ## Architecture
 
 | App | Role | Stack | Port |
 | --- | --- | --- | --- |
-| mobile | App sportif | Expo + React Native | - |
-| kiosk | Interface borne physique | Next.js 14 | 3000 |
-| dashboard | Dashboard gerant B2B | Next.js 14 | 3001 |
+| mobile | Experience sportif mobile | Expo + React Native | - |
+| dashboard | App web FEATNESS unique (`/app` + `/admin`) | Next.js 14 | 3001 |
+| kiosk | Borne de distribution / demo terrain | Next.js 14 | 3000 |
 | shared | Algo nutrition + types | TypeScript | - |
 
 ## Prerequis
 
-Node 18+, npm 9+, compte Supabase, compte Stripe en mode test, Expo CLI
+- Node 18+
+- npm 9+
+- un projet Supabase
+- un compte Stripe en mode test si tu veux valider le paiement borne
+- Expo Go pour tester le mobile
 
 ## Installation
 
 ```bash
-git clone <repo>
-cd nutrition-kiosk-mvp
+git clone https://github.com/kenams/FEATNESS.git
+cd FEATNESS
 npm install
 ```
 
 ## Configuration Supabase
 
-1. Creer un projet sur `supabase.com`
-2. Copier l'URL et les cles dans les `.env.local` de chaque app
-3. Aller dans `Supabase Dashboard -> SQL Editor`
-4. Executer les migrations dans l'ordre :
+1. Cree un projet sur `supabase.com`
+2. Renseigne les `.env.local` de :
+   - `apps/dashboard`
+   - `apps/kiosk`
+   - `apps/mobile`
+3. Dans `Supabase Dashboard -> SQL Editor`, execute dans l'ordre :
    - `supabase/migrations/001_featness_core.sql`
    - `supabase/migrations/002_featness_seed.sql`
    - `supabase/migrations/003_payments.sql`
    - `supabase/migrations/004_owner_role.sql`
    - `supabase/migrations/005_push_tokens.sql`
-5. Creer un compte owner :
-   - creer un utilisateur dans Supabase Auth avec email/password
-   - puis executer :
+4. Cree un compte admin FEATNESS :
 
 ```sql
 update public.profiles
 set role = 'owner'
-where id = '<user_id>';
+where email = 'votre-email@example.com';
 ```
 
 ## Configuration Stripe
 
-1. Creer un compte sur `stripe.com`
-2. Recuperer les cles test dans `Dashboard -> Developers -> API keys`
-3. Renseigner :
-   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-   - `STRIPE_SECRET_KEY`
-4. Pour tester le webhook en local :
+Variables utiles uniquement pour la borne `apps/kiosk` :
+
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
+Webhook local :
 
 ```bash
 stripe listen --forward-to localhost:3000/api/payment/webhook
 ```
 
-5. Copier le `whsec_...` affiche dans `STRIPE_WEBHOOK_SECRET`
-
-## Lancement
+## Lancement local
 
 ```bash
-# Terminal 1 — Borne
-cd apps/kiosk
-npm run dev
+# Web FEATNESS unique
+npm run dev:web
 
-# Terminal 2 — Dashboard B2B
-cd apps/dashboard
-npm run dev
+# Borne
+npm run dev:kiosk
 
-# Terminal 3 — App mobile
-cd apps/mobile
-npx expo start
+# Mobile
+npm run dev:mobile
 ```
 
-## Flux de demo complet (sans materiel physique)
+Applications :
 
-1. Ouvrir la borne sur `http://localhost:3000`
-2. Cliquer `Mode demo` en bas a droite
-3. Cliquer `Tester directement sur cette borne ->`
-4. Selectionner un repas puis confirmer
-5. Sur l'ecran de paiement, cliquer `Payer ... Carte test ****4242`
-6. Observer la distribution simulee
-7. Verifier dans le dashboard `/orders` que la commande apparait
+- web FEATNESS : `http://localhost:3001`
+- espace utilisateur : `http://localhost:3001/app`
+- espace admin : `http://localhost:3001/admin/overview`
+- borne demo : `http://localhost:3000`
 
-## Flux reel (avec app mobile)
+## Parcours MVP recommande
 
-1. Creer un compte dans l'app mobile
-2. Renseigner le profil
-3. Creer une seance et obtenir le QR code
-4. Sur la borne, scanner le QR code
-5. Selectionner un repas, payer, puis recuperer le repas
+### 1. Web utilisateur
+
+1. Ouvre `http://localhost:3001/login`
+2. Cree un compte utilisateur
+3. Complete ton profil dans `/app`
+4. Renseigne une seance
+5. Genere un QR FEATNESS et visualise les repas recommandes
+
+### 2. Web admin
+
+1. Connecte-toi avec un compte `owner`
+2. Va sur `/admin/overview`
+3. Gere les bornes, commandes et menu
+
+### 3. Mobile
+
+1. Lance Expo avec `npm run dev:mobile`
+2. Ouvre Expo Go
+3. Connecte-toi ou cree un compte
+4. Complete le profil, cree une seance et genere le QR
+
+### 4. Borne
+
+1. Ouvre `http://localhost:3000`
+2. Utilise `Mode demo` ou scanne un QR FEATNESS
+3. Passe par le flow repas -> paiement -> distribution
 
 ## Notes utiles
 
-- Le dashboard n'a pas d'inscription publique : les comptes `owner` sont crees
-  manuellement dans Supabase.
-- La borne utilise `NEXT_PUBLIC_KIOSK_ID` comme identifiant physique unique.
-- Le mode demo cree un profil FEATNESS fictif stable par borne.
-- Pour les checks locaux :
+- le web FEATNESS est maintenant la surface la plus simple a deployer sur Vercel
+- le mobile reste le produit principal pour l'utilisateur final
+- l'espace admin vit dans la meme app web que l'espace utilisateur
+- la borne reste disponible comme experience terrain / demo
+
+## Verification
 
 ```bash
 npm run check
-npm run build --workspace @featness/kiosk
+npm run build:web
+npm run build:kiosk
 cd apps/mobile && npx expo export
 ```

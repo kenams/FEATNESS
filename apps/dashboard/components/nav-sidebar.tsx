@@ -13,38 +13,62 @@ type NavSidebarProps = {
 
 const links = [
   {
-    href: "/overview",
+    href: "/admin/overview",
     label: "Vue d'ensemble",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
         <path d="M4 13h6V4H4zM14 20h6v-9h-6zM14 10h6V4h-6zM4 20h6v-3H4z" />
       </svg>
     ),
   },
   {
-    href: "/kiosks",
+    href: "/admin/kiosks",
     label: "Bornes",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
         <path d="M7 4h10v16H7z" />
         <path d="M10 8h4M10 12h4M11 17h2" />
       </svg>
     ),
   },
   {
-    href: "/orders",
+    href: "/admin/orders",
     label: "Commandes",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
         <path d="M8 7h12M8 12h12M8 17h12M4 7h.01M4 12h.01M4 17h.01" />
       </svg>
     ),
   },
   {
-    href: "/menu",
+    href: "/admin/menu",
     label: "Menu",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
         <path d="M7 4v16M11 4v16M15 4c2 2 3 4.5 3 8s-1 6-3 8" />
       </svg>
     ),
@@ -62,7 +86,13 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
         className="fixed left-4 top-4 z-30 rounded-full bg-featness-panel p-3 text-white shadow-lg lg:hidden"
         onClick={() => setIsOpen((current) => !current)}
       >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <svg
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       </button>
@@ -74,8 +104,10 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
       >
         <div className="grid gap-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-featness-gold">FEATNESS</p>
-            <h1 className="mt-2 text-lg font-semibold">Dashboard gérant</h1>
+            <p className="text-xs uppercase tracking-[0.32em] text-featness-gold">
+              FEATNESS
+            </p>
+            <h1 className="mt-2 text-lg font-semibold">Administration</h1>
           </div>
 
           <nav className="grid gap-2">

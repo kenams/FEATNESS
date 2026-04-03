@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getOwnerSessionOrNull } from "@/lib/auth";
+import { getAuthenticatedContextOrNull, getDefaultAppPath } from "@/lib/auth";
 
 export default async function HomePage() {
-  const ownerContext = await getOwnerSessionOrNull(cookies());
-  redirect(ownerContext ? "/overview" : "/login");
+  const context = await getAuthenticatedContextOrNull(cookies());
+  redirect(context ? getDefaultAppPath(context.profile.role) : "/login");
 }

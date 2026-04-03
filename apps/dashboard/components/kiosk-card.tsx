@@ -79,7 +79,7 @@ export function KioskCard({ kiosk, revenueToday }: KioskCardProps) {
       </div>
 
       <Link
-        href={`/kiosks/${kiosk.id}`}
+        href={`/admin/kiosks/${kiosk.id}`}
         className="mt-5 inline-flex rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-featness-ink transition hover:border-featness-gold"
       >
         Voir details

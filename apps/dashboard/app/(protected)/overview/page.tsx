@@ -68,7 +68,7 @@ export default async function OverviewPage() {
             </p>
           </div>
           <Link
-            href="/orders"
+            href="/admin/orders"
             className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-featness-ink transition hover:border-featness-gold"
           >
             Voir toutes

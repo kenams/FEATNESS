@@ -55,7 +55,7 @@ export function NewKioskForm() {
       return;
     }
 
-    router.push(`/kiosks/${body.kioskId}`);
+    router.push(`/admin/kiosks/${body.kioskId}`);
     router.refresh();
   }
 

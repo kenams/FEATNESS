@@ -17,7 +17,9 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const supabase = getSupabaseBrowserClient();
   const {
     register,
@@ -33,15 +35,38 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginFormValues) {
     setErrorMessage(null);
-    const { error } = await supabase.auth.signInWithPassword(values);
+    setSuccessMessage(null);
 
-    if (error) {
-      setErrorMessage("Email ou mot de passe incorrect");
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword(values);
+
+      if (error) {
+        setErrorMessage("Email ou mot de passe incorrect");
+        return;
+      }
+
+      router.push("/");
+      router.refresh();
       return;
     }
 
-    router.push("/overview");
-    router.refresh();
+    const { data, error } = await supabase.auth.signUp(values);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (data.session) {
+      router.push("/");
+      router.refresh();
+      return;
+    }
+
+    setSuccessMessage(
+      "Compte cree. Connectez-vous pour acceder a votre espace FEATNESS.",
+    );
+    setMode("signin");
   }
 
   return (
@@ -49,6 +74,47 @@ export function LoginForm() {
       onSubmit={handleSubmit(onSubmit)}
       className="grid gap-4 rounded-[28px] bg-white p-8 shadow-[0_24px_80px_rgba(12,20,18,0.08)]"
     >
+      <div className="grid gap-3">
+        <div className="inline-flex rounded-full bg-[#eff3f1] p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setMode("signin");
+              setErrorMessage(null);
+              setSuccessMessage(null);
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              mode === "signin"
+                ? "bg-featness-ink text-white"
+                : "text-featness-muted"
+            }`}
+          >
+            Connexion
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("signup");
+              setErrorMessage(null);
+              setSuccessMessage(null);
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              mode === "signup"
+                ? "bg-featness-ink text-white"
+                : "text-featness-muted"
+            }`}
+          >
+            Creer un compte
+          </button>
+        </div>
+
+        <p className="text-sm text-featness-muted">
+          {mode === "signin"
+            ? "Connectez-vous a votre espace FEATNESS."
+            : "Creer un compte utilisateur pour tester le parcours FEATNESS."}
+        </p>
+      </div>
+
       <div className="grid gap-2">
         <label className="text-sm font-medium text-featness-ink" htmlFor="email">
           Email
@@ -58,7 +124,7 @@ export function LoginForm() {
           type="email"
           {...register("email")}
           className="rounded-2xl border border-black/10 px-4 py-3 outline-none ring-0 transition focus:border-featness-gold"
-          placeholder="owner@featness.app"
+          placeholder="hello@featness.app"
         />
         {errors.email ? (
           <p className="text-sm text-red-600">{errors.email.message}</p>
@@ -74,7 +140,7 @@ export function LoginForm() {
           type="password"
           {...register("password")}
           className="rounded-2xl border border-black/10 px-4 py-3 outline-none ring-0 transition focus:border-featness-gold"
-          placeholder="••••••••"
+          placeholder="********"
         />
         {errors.password ? (
           <p className="text-sm text-red-600">{errors.password.message}</p>
@@ -82,13 +148,20 @@ export function LoginForm() {
       </div>
 
       {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      {successMessage ? (
+        <p className="text-sm text-emerald-700">{successMessage}</p>
+      ) : null}
 
       <button
         type="submit"
         disabled={isSubmitting}
         className="rounded-full bg-featness-gold px-5 py-3 text-sm font-semibold text-featness-ink transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSubmitting ? "Connexion..." : "Se connecter"}
+        {isSubmitting
+          ? "Chargement..."
+          : mode === "signin"
+            ? "Se connecter"
+            : "Creer mon compte"}
       </button>
     </form>
   );

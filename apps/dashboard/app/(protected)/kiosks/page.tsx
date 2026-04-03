@@ -33,7 +33,7 @@ export default async function KiosksPage() {
           </p>
         </div>
         <Link
-          href="/kiosks/new"
+          href="/admin/kiosks/new"
           className="rounded-full bg-featness-gold px-5 py-3 text-sm font-semibold text-featness-ink"
         >
           Ajouter une borne
