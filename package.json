@@ -1,0 +1,21 @@
+{
+  "name": "featness",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:kiosk": "npm run dev --workspace @featness/kiosk",
+    "dev:dashboard": "npm run dev --workspace @featness/dashboard",
+    "dev:mobile": "npm run start --workspace @featness/mobile",
+    "build:kiosk": "npm run build --workspace @featness/kiosk",
+    "build:dashboard": "npm run build --workspace @featness/dashboard",
+    "typecheck": "npm run typecheck --workspace @featness/shared && npm run typecheck --workspace @featness/kiosk && npm run typecheck --workspace @featness/dashboard && npm run typecheck --workspace @featness/mobile",
+    "check": "npm run typecheck && npm run build:kiosk && npm run build:dashboard"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

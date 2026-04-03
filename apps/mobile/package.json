@@ -1,0 +1,32 @@
+{
+  "name": "@featness/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "typecheck": "npx tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~4.0.1",
+    "@featness/shared": "*",
+    "@react-native-async-storage/async-storage": "^2.1.0",
+    "@supabase/supabase-js": "^2.49.8",
+    "expo": "~52.0.19",
+    "expo-device": "~7.0.3",
+    "expo-notifications": "~0.29.14",
+    "expo-status-bar": "~2.0.1",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-qrcode-svg": "^6.3.15",
+    "react-native-svg": "15.8.0",
+    "react-native-web": "~0.19.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "typescript": "^5.6.3"
+  }
+}
