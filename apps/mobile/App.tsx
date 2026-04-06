@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import type { Session } from "@supabase/supabase-js";
 
 import {
-  buildSessionSuggestions,
   buildNutritionRecommendation,
+  buildSessionSuggestions,
   calculateBmi,
   isExpired,
   type BmiInsight,
@@ -40,10 +40,7 @@ import {
   type DrinkBlendRecord,
 } from "./src/lib/featness-data";
 import { registerForPushNotificationsAsync } from "./src/lib/notifications";
-import {
-  getMobileSupabaseClient,
-  isMobileSupabaseConfigured,
-} from "./src/lib/supabase";
+import { getMobileSupabaseClient, isMobileSupabaseConfigured } from "./src/lib/supabase";
 import { mobileShadow, theme } from "./src/theme";
 
 const TEST_USER_EMAIL = "featness.user.demo@mailinator.com";
@@ -52,6 +49,77 @@ const TEST_USER_PASSWORD = "test123456";
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+};
+
+type JourneyStep = {
+  key: string;
+  label: string;
+  status: "done" | "current" | "upcoming";
+};
+
+type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile";
+
+type ScreenMeta = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  background: string;
+  panel: string;
+  glow: string;
+  accent: string;
+};
+
+const SCREEN_META: Record<ScreenKey, ScreenMeta> = {
+  home: {
+    eyebrow: "Accueil",
+    title: "Ton plat sans scroll inutile",
+    description:
+      "Un point d'entree simple, puis FEATNESS te guide et t'emmene vers la prochaine etape utile.",
+    background: "#07110f",
+    panel: "#10211d",
+    glow: "rgba(201,166,70,0.18)",
+    accent: theme.colors.gold,
+  },
+  sessions: {
+    eyebrow: "Seances",
+    title: "Choisis ton effort, FEATNESS gere la suite",
+    description:
+      "Trois seances utiles, un seul choix a faire, puis les plats apparaissent directement.",
+    background: "#081715",
+    panel: "#0f241f",
+    glow: "rgba(111,212,168,0.18)",
+    accent: theme.colors.mint,
+  },
+  meals: {
+    eyebrow: "Plats",
+    title: "Trois recommandations, une decision rapide",
+    description:
+      "Tu compares uniquement l'essentiel : alignement, macros, prix et temps de preparation.",
+    background: "#161107",
+    panel: "#241b0c",
+    glow: "rgba(201,166,70,0.22)",
+    accent: theme.colors.gold,
+  },
+  qr: {
+    eyebrow: "QR",
+    title: "Le QR reste secondaire",
+    description:
+      "Le repas est deja choisi. Le QR ne sert qu'a finaliser plus tard sur la borne si necessaire.",
+    background: "#0a1318",
+    panel: "#11212c",
+    glow: "rgba(148,206,255,0.2)",
+    accent: "#94ceff",
+  },
+  profile: {
+    eyebrow: "Profil",
+    title: "Ta fiche sante et ton historique",
+    description:
+      "IMC, objectif, favoris et dernieres seances restent accessibles sans alourdir le reste du parcours.",
+    background: "#0d1219",
+    panel: "#171e28",
+    glow: "rgba(179,191,210,0.18)",
+    accent: "#c0ccda",
+  },
 };
 
 function buildSuggestedMeals(
@@ -109,11 +177,50 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
   return "success";
 }
 
-type JourneyStep = {
-  key: string;
-  label: string;
-  status: "done" | "current" | "upcoming";
-};
+function getRecommendedScreen(
+  hasUser: boolean,
+  hasCompletedOnboarding: boolean,
+  hasSession: boolean,
+  hasSelectedMeal: boolean,
+  hasToken: boolean,
+): ScreenKey {
+  if (!hasUser) {
+    return "home";
+  }
+
+  if (!hasCompletedOnboarding) {
+    return "profile";
+  }
+
+  if (!hasSession) {
+    return "sessions";
+  }
+
+  if (!hasSelectedMeal) {
+    return "meals";
+  }
+
+  if (!hasToken) {
+    return "qr";
+  }
+
+  return "home";
+}
+
+function formatPrimaryObjectiveLabel(value: PrimaryObjectiveKey): string {
+  switch (value) {
+    case "lose_weight":
+      return "Perte de poids";
+    case "maintain":
+      return "Maintien";
+    case "gain_muscle":
+      return "Prise de muscle";
+    case "improve_endurance":
+      return "Endurance";
+    default:
+      return value;
+  }
+}
 
 export default function App() {
   const [email, setEmail] = useState("");
@@ -132,6 +239,7 @@ export default function App() {
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
 
   const supabaseEnabled = isMobileSupabaseConfigured();
   const supabaseClient = useMemo(() => getMobileSupabaseClient(), []);
@@ -172,11 +280,20 @@ export default function App() {
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const hasSelectedMeal = Boolean(activeSession?.selectedMealBlendId);
   const feedbackTone = getFeedbackTone(feedbackMessage);
-  const currentJourney = useMemo<JourneyStep[]>(() => {
-    const hasSession = Boolean(activeSession);
-    const hasQr = Boolean(activeToken);
+  const recommendedScreen = useMemo(
+    () =>
+      getRecommendedScreen(
+        Boolean(session?.user),
+        hasCompletedOnboarding,
+        Boolean(activeSession),
+        hasSelectedMeal,
+        Boolean(activeToken),
+      ),
+    [activeSession, activeToken, hasCompletedOnboarding, hasSelectedMeal, session?.user],
+  );
 
-    return [
+  const currentJourney = useMemo<JourneyStep[]>(
+    () => [
       {
         key: "account",
         label: "Compte",
@@ -189,55 +306,76 @@ export default function App() {
           ? "upcoming"
           : hasCompletedOnboarding
             ? "done"
-            : "current",
+            : currentScreen === "profile"
+              ? "current"
+              : "upcoming",
       },
       {
         key: "session",
         label: "Seance",
         status: !session?.user || !hasCompletedOnboarding
           ? "upcoming"
-          : hasSession
+          : activeSession
             ? "done"
-            : "current",
+            : currentScreen === "sessions"
+              ? "current"
+              : "upcoming",
       },
       {
         key: "meal",
         label: "Plat",
-        status: !session?.user || !hasCompletedOnboarding || !hasSession
+        status: !session?.user || !hasCompletedOnboarding || !activeSession
           ? "upcoming"
           : hasSelectedMeal
             ? "done"
-            : "current",
+            : currentScreen === "meals"
+              ? "current"
+              : "upcoming",
       },
       {
         key: "qr",
         label: "QR",
-        status: !hasSelectedMeal ? "upcoming" : hasQr ? "done" : "current",
+        status: !hasSelectedMeal
+          ? "upcoming"
+          : activeToken
+            ? "done"
+            : currentScreen === "qr"
+              ? "current"
+              : "upcoming",
       },
-    ];
-  }, [activeSession, activeToken, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
+    ],
+    [
+      activeSession,
+      activeToken,
+      currentScreen,
+      hasCompletedOnboarding,
+      hasSelectedMeal,
+      session?.user,
+    ],
+  );
+
   const quickStatus = useMemo(() => {
     if (!session?.user) {
-      return "Connecte-toi puis complete ton profil pour obtenir ton plat rapidement.";
+      return "Connecte-toi puis laisse FEATNESS te guider ecran par ecran vers ton repas.";
     }
 
     if (!hasCompletedOnboarding) {
-      return "Complete ton profil sante. L'app te proposera ensuite directement des seances utiles.";
+      return "Commence par la fiche sante. Age, poids, taille et objectif suffisent pour debloquer la suite.";
     }
 
     if (!activeSession) {
-      return "Choisis une seance suggeree pour lancer instantanement ta recommandation repas.";
+      return "Passe a l'ecran Seances. Tu y trouveras trois options directement basees sur ton profil.";
     }
 
     if (!hasSelectedMeal) {
-      return "Tes 3 plats sont prets. Choisis simplement celui que tu veux.";
+      return "Passe a l'ecran Plats. Les trois recommandations sont deja triees pour aller vite.";
     }
 
     if (!activeToken) {
-      return "Ton plat est choisi. Le QR est optionnel et peut etre genere ensuite si besoin.";
+      return "Ton repas est choisi. Le QR est pret a etre genere ensuite, sans urgence.";
     }
 
-    return "C'est bon. Ton plat est choisi et ton QR est pret.";
+    return "Tout est pret : repas choisi, QR genere, parcours termine.";
   }, [activeSession, activeToken, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
 
   const mealNamesById = useMemo(
@@ -248,6 +386,13 @@ export default function App() {
       >,
     [availableMeals],
   );
+
+  const latestSelectedMealName =
+    (activeSession?.selectedMealBlendId && mealNamesById[activeSession.selectedMealBlendId]) ||
+    selectedMeal?.name ||
+    null;
+
+  const screenMeta = SCREEN_META[currentScreen];
 
   useEffect(() => {
     if (!supabaseClient) {
@@ -284,6 +429,7 @@ export default function App() {
       setActiveSession(null);
       setAvailableMeals([]);
       setSelectedMealId(null);
+      setCurrentScreen("home");
       return;
     }
 
@@ -399,6 +545,28 @@ export default function App() {
   }, [activeSession?.id, activeSession?.selectedMealBlendId, suggestedMeals]);
 
   useEffect(() => {
+    if (!session?.user) {
+      return;
+    }
+
+    setCurrentScreen((previousScreen) => {
+      if (!hasCompletedOnboarding && ["sessions", "meals", "qr"].includes(previousScreen)) {
+        return "profile";
+      }
+
+      if (!activeSession && ["meals", "qr"].includes(previousScreen)) {
+        return "sessions";
+      }
+
+      if (!hasSelectedMeal && previousScreen === "qr") {
+        return "meals";
+      }
+
+      return previousScreen;
+    });
+  }, [activeSession, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
+
+  useEffect(() => {
     const user = session?.user;
 
     if (!supabaseClient || !user) {
@@ -432,6 +600,56 @@ export default function App() {
       cancelled = true;
     };
   }, [session?.user?.id, supabaseClient]);
+
+  function canOpenScreen(screen: ScreenKey): boolean {
+    switch (screen) {
+      case "home":
+        return true;
+      case "profile":
+        return Boolean(session?.user);
+      case "sessions":
+        return Boolean(session?.user && hasCompletedOnboarding);
+      case "meals":
+        return Boolean(session?.user && activeSession);
+      case "qr":
+        return Boolean(session?.user && activeSession?.selectedMealBlendId);
+      default:
+        return false;
+    }
+  }
+
+  function openScreen(screen: ScreenKey) {
+    if (canOpenScreen(screen)) {
+      setCurrentScreen(screen);
+      return;
+    }
+
+    if (!session?.user) {
+      setFeedbackMessage("Connecte-toi d'abord pour acceder aux autres ecrans.");
+      return;
+    }
+
+    if (!hasCompletedOnboarding) {
+      setFeedbackMessage("Complete d'abord la fiche sante.");
+      setCurrentScreen("profile");
+      return;
+    }
+
+    if (!activeSession) {
+      setFeedbackMessage("Choisis d'abord une seance.");
+      setCurrentScreen("sessions");
+      return;
+    }
+
+    if (!hasSelectedMeal) {
+      setFeedbackMessage("Valide d'abord un plat.");
+      setCurrentScreen("meals");
+    }
+  }
+
+  function openRecommendedStep() {
+    openScreen(recommendedScreen);
+  }
 
   async function createSessionFlow(
     workout: UserWorkoutInput,
@@ -475,8 +693,11 @@ export default function App() {
     });
 
     setIsBusy(false);
+    if (!error) {
+      setCurrentScreen("home");
+    }
     setFeedbackMessage(
-      error ? error.message : "Connexion reussie. Session mobile FEATNESS ouverte.",
+      error ? error.message : "Connexion reussie. Tu peux maintenant avancer ecran par ecran.",
     );
   }
 
@@ -497,10 +718,13 @@ export default function App() {
     });
 
     setIsBusy(false);
+    if (!error) {
+      setCurrentScreen("home");
+    }
     setFeedbackMessage(
       error
         ? error.message
-        : "Compte cree. Le trigger Supabase doit maintenant avoir initialise ton profil.",
+        : "Compte cree. Connecte-toi puis complete la fiche sante pour lancer FEATNESS.",
     );
   }
 
@@ -523,16 +747,18 @@ export default function App() {
     });
 
     setIsBusy(false);
+    if (!error) {
+      setCurrentScreen("home");
+    }
     setFeedbackMessage(
-      error
-        ? error.message
-        : "Compte test charge. Tu peux demarrer les tests FEATNESS.",
+      error ? error.message : "Compte test charge. Le parcours FEATNESS est pret a etre joue.",
     );
   }
 
   async function handleSignOut() {
     if (!supabaseClient) {
       setSession(null);
+      setCurrentScreen("home");
       setFeedbackMessage("Mode demo : aucune session distante a fermer.");
       return;
     }
@@ -540,6 +766,7 @@ export default function App() {
     setIsBusy(true);
     const { error } = await supabaseClient.auth.signOut();
     setIsBusy(false);
+    setCurrentScreen("home");
     setFeedbackMessage(error ? error.message : "Session fermee.");
   }
 
@@ -569,7 +796,8 @@ export default function App() {
 
       setProfile(nextProfile);
       setWeightKg(String(nextProfile.weightKg ?? weightKg));
-      setFeedbackMessage("Profil sante FEATNESS sauvegarde. Tu peux maintenant choisir une seance.");
+      setCurrentScreen("sessions");
+      setFeedbackMessage("Profil sante FEATNESS sauvegarde. Passe maintenant aux seances.");
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible d'enregistrer le profil.",
@@ -608,8 +836,9 @@ export default function App() {
       await createSessionFlow(
         workout,
         buildNutritionRecommendation(workout),
-        `${suggestion.title} lancee. Tes 3 plats recommandes sont deja proposes juste en dessous.`,
+        `${suggestion.title} lancee. Tu arrives maintenant directement sur les plats recommandes.`,
       );
+      setCurrentScreen("meals");
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de lancer cette seance.",
@@ -670,13 +899,14 @@ export default function App() {
 
       setActiveSession(updatedSession);
       setActiveToken(nextToken);
+      setCurrentScreen("qr");
       setHistory((previousHistory) =>
         previousHistory.map((sessionItem) =>
           sessionItem.id === updatedSession.id ? updatedSession : sessionItem,
         ),
       );
       setFeedbackMessage(
-        `${selectedMeal.name} retenu. Le choix est synchronise et ton QR FEATNESS est pret.`,
+        `${selectedMeal.name} retenu. Le choix est synchronise et l'ecran QR est maintenant disponible.`,
       );
     } catch (error) {
       setFeedbackMessage(
@@ -701,7 +931,8 @@ export default function App() {
         activeSession.id,
       );
       setActiveToken(nextToken);
-      setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant finaliser sur la borne.");
+      setCurrentScreen("qr");
+      setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant finaliser sur la borne si besoin.");
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de generer le QR.",
@@ -711,86 +942,40 @@ export default function App() {
     }
   }
 
-  const showProfileOnboarding = Boolean(session?.user && profile && !profile.onboardingCompleted);
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <AnimatedSection delay={0}>
-          <View style={styles.hero}>
-            <View style={styles.heroGlowGold} />
-            <View style={styles.heroGlowMint} />
-            <Text style={styles.eyebrow}>FEATNESS Mobile</Text>
-            <Text style={styles.title}>Ton plat en quelques clics</Text>
-            <Text style={styles.subtitle}>
-              Profil sante, seances utiles, recommandation repas. FEATNESS va droit au but
-              pour te proposer rapidement le bon plat.
-            </Text>
-            <View style={styles.journeyStrip}>
-              {currentJourney.map((step) => (
-                <View
-                  key={step.key}
-                  style={[
-                    styles.journeyChip,
-                    step.status === "done"
-                      ? styles.journeyChipDone
-                      : step.status === "current"
-                        ? styles.journeyChipCurrent
-                        : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.journeyChipText,
-                      step.status === "done"
-                        ? styles.journeyChipTextDone
-                        : step.status === "current"
-                          ? styles.journeyChipTextCurrent
-                          : null,
-                    ]}
-                  >
-                    {step.label}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.heroStats}>
-              <View style={styles.heroPill}>
-                <Text style={styles.heroPillValue}>
-                  {session?.user ? "Connecte" : "Invite"}
-                </Text>
-                <Text style={styles.heroPillLabel}>Etat</Text>
-              </View>
-              <View style={styles.heroPill}>
-                <Text style={styles.heroPillValue}>
-                  {history.length > 0 ? history.length : 0}
-                </Text>
-                <Text style={styles.heroPillLabel}>Seances</Text>
-              </View>
-              <View style={styles.heroPill}>
-                <Text style={styles.heroPillValue}>
-                  {profile?.favoriteMealIds.length ?? 0}
-                </Text>
-                <Text style={styles.heroPillLabel}>Favoris</Text>
-              </View>
-            </View>
+  const renderHomeScreen = () => (
+    <>
+      <AnimatedSection delay={0}>
+        <View style={styles.heroStats}>
+          <View style={styles.heroPill}>
+            <Text style={styles.heroPillValue}>{session?.user ? "Connecte" : "Invite"}</Text>
+            <Text style={styles.heroPillLabel}>Etat</Text>
           </View>
-        </AnimatedSection>
-
-        <AnimatedSection delay={80}>
-          <View style={styles.nextActionCard}>
-            <Text style={styles.sectionEyebrow}>Statut rapide</Text>
-            <Text style={styles.nextActionTitle}>Le chemin le plus court vers ton repas</Text>
-            <Text style={styles.nextActionDescription}>{quickStatus}</Text>
-            <Text style={styles.nextActionHint}>
-              Pour une demo propre : profil complet, une seance choisie, un plat valide, puis QR
-              seulement a la fin.
-            </Text>
+          <View style={styles.heroPill}>
+            <Text style={styles.heroPillValue}>{history.length}</Text>
+            <Text style={styles.heroPillLabel}>Seances</Text>
           </View>
-        </AnimatedSection>
+          <View style={styles.heroPill}>
+            <Text style={styles.heroPillValue}>{profile?.favoriteMealIds.length ?? 0}</Text>
+            <Text style={styles.heroPillLabel}>Favoris</Text>
+          </View>
+        </View>
+      </AnimatedSection>
 
-        <AnimatedSection delay={140}>
+      <AnimatedSection delay={70}>
+        <View style={styles.nextActionCard}>
+          <Text style={styles.sectionEyebrow}>Statut rapide</Text>
+          <Text style={styles.nextActionTitle}>La prochaine etape utile</Text>
+          <Text style={styles.nextActionDescription}>{quickStatus}</Text>
+          {session?.user ? (
+            <Pressable style={styles.primaryCta} onPress={openRecommendedStep}>
+              <Text style={styles.primaryCtaText}>Ouvrir l'etape recommandee</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </AnimatedSection>
+
+      {!session?.user ? (
+        <AnimatedSection delay={120}>
           <AuthCard
             email={email}
             password={password}
@@ -802,101 +987,340 @@ export default function App() {
             onSignOut={() => void handleSignOut()}
             isBusy={isBusy}
             isConfigured={supabaseEnabled}
-            sessionEmail={session?.user.email ?? null}
+            sessionEmail={session?.user?.email ?? null}
             message={null}
           />
         </AnimatedSection>
-
-        {feedbackMessage ? (
-          <AnimatedSection delay={170}>
-            <View
-              style={[
-                styles.feedbackBanner,
-                feedbackTone === "success"
-                  ? styles.feedbackSuccess
-                  : feedbackTone === "warning"
-                    ? styles.feedbackWarning
-                    : null,
-              ]}
-            >
-              <Text style={styles.feedbackEyebrow}>
-                {feedbackTone === "success"
-                  ? "Statut"
-                  : feedbackTone === "warning"
-                    ? "Attention"
-                    : "Information"}
+      ) : (
+        <AnimatedSection delay={120}>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Objectif</Text>
+              <Text style={styles.summaryValue}>
+                {formatPrimaryObjectiveLabel(primaryObjective)}
               </Text>
-              <Text style={styles.feedbackText}>{feedbackMessage}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>IMC</Text>
+              <Text style={styles.summaryValue}>{bmiInsight?.bmi ?? "--"}</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Plat retenu</Text>
+              <Text style={styles.summaryValue} numberOfLines={2}>
+                {latestSelectedMealName ?? "Aucun pour l'instant"}
+              </Text>
+            </View>
+          </View>
+        </AnimatedSection>
+      )}
+
+      {session?.user ? (
+        <AnimatedSection delay={170}>
+          <View style={styles.accountCard}>
+            <Text style={styles.accountEyebrow}>Compte</Text>
+            <Text style={styles.accountEmail}>{session.user.email ?? "Compte FEATNESS"}</Text>
+            <Text style={styles.accountHint}>
+              Utilise les onglets du bas pour avancer sans repasser par un long scroll.
+            </Text>
+            <Pressable style={styles.secondaryCta} onPress={() => void handleSignOut()}>
+              <Text style={styles.secondaryCtaText}>Se deconnecter</Text>
+            </Pressable>
+          </View>
+        </AnimatedSection>
+      ) : null}
+    </>
+  );
+
+  const renderSessionsScreen = () => {
+    if (!session?.user || !hasCompletedOnboarding) {
+      return (
+        <AnimatedSection delay={0}>
+          <View style={styles.prerequisiteCard}>
+            <Text style={styles.prerequisiteTitle}>Complete d'abord la fiche sante</Text>
+            <Text style={styles.prerequisiteText}>
+              Age, poids, taille et objectif sont necessaires avant de recevoir des seances
+              pertinentes.
+            </Text>
+            <Pressable style={styles.primaryCta} onPress={() => openScreen("profile")}>
+              <Text style={styles.primaryCtaText}>Aller au profil</Text>
+            </Pressable>
+          </View>
+        </AnimatedSection>
+      );
+    }
+
+    return (
+      <>
+        <AnimatedSection delay={0}>
+          <View style={styles.summaryBanner}>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>IMC</Text>
+              <Text style={styles.summaryBannerValue}>{bmiInsight?.bmi ?? "--"}</Text>
+            </View>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>Objectif</Text>
+              <Text style={styles.summaryBannerValue}>
+                {formatPrimaryObjectiveLabel(primaryObjective)}
+              </Text>
+            </View>
+          </View>
+        </AnimatedSection>
+        <AnimatedSection delay={80}>
+          <SessionSuggestionsCard
+            suggestions={sessionSuggestions}
+            onStartSuggestion={(suggestion) => void handleStartSuggestedSession(suggestion)}
+            isBusy={isBusy}
+          />
+        </AnimatedSection>
+      </>
+    );
+  };
+
+  const renderMealsScreen = () => {
+    if (!activeSession) {
+      return (
+        <AnimatedSection delay={0}>
+          <View style={styles.prerequisiteCard}>
+            <Text style={styles.prerequisiteTitle}>Choisis d'abord une seance</Text>
+            <Text style={styles.prerequisiteText}>
+              L'ecran Plats reste vide tant qu'aucune seance n'a ete lancee.
+            </Text>
+            <Pressable style={styles.primaryCta} onPress={() => openScreen("sessions")}>
+              <Text style={styles.primaryCtaText}>Aller aux seances</Text>
+            </Pressable>
+          </View>
+        </AnimatedSection>
+      );
+    }
+
+    return (
+      <>
+        <AnimatedSection delay={0}>
+          <SuggestedMealsCard
+            meals={suggestedMeals}
+            goal={activeSession.workout.goal}
+            selectedMealId={selectedMealId}
+            favoriteMealIds={profile?.favoriteMealIds ?? []}
+            onSelectMeal={setSelectedMealId}
+          />
+        </AnimatedSection>
+        <AnimatedSection delay={80}>
+          <MealDetailCard
+            meal={selectedMeal}
+            goal={activeSession.workout.goal}
+            isFavorite={
+              selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false
+            }
+            onToggleFavorite={() => void handleToggleFavoriteMeal()}
+            onConfirmChoice={() => void handleConfirmMealChoice()}
+          />
+        </AnimatedSection>
+      </>
+    );
+  };
+
+  const renderQrScreen = () => {
+    if (!activeSession?.selectedMealBlendId) {
+      return (
+        <AnimatedSection delay={0}>
+          <View style={styles.prerequisiteCard}>
+            <Text style={styles.prerequisiteTitle}>Valide d'abord ton plat</Text>
+            <Text style={styles.prerequisiteText}>
+              Le QR n'apparait qu'une fois ton repas choisi, pour garder un parcours simple.
+            </Text>
+            <Pressable style={styles.primaryCta} onPress={() => openScreen("meals")}>
+              <Text style={styles.primaryCtaText}>Aller aux plats</Text>
+            </Pressable>
+          </View>
+        </AnimatedSection>
+      );
+    }
+
+    return (
+      <>
+        <AnimatedSection delay={0}>
+          <View style={styles.summaryBanner}>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>Repas choisi</Text>
+              <Text style={styles.summaryBannerValue} numberOfLines={2}>
+                {latestSelectedMealName ?? "Repas FEATNESS"}
+              </Text>
+            </View>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>Etat</Text>
+              <Text style={styles.summaryBannerValue}>
+                {activeToken ? "QR actif" : "QR a generer"}
+              </Text>
+            </View>
+          </View>
+        </AnimatedSection>
+        <AnimatedSection delay={80}>
+          <ActiveTokenCard
+            token={activeToken}
+            session={activeSession}
+            onGenerate={() => void handleGenerateQr()}
+            isBusy={isBusy}
+          />
+        </AnimatedSection>
+      </>
+    );
+  };
+
+  const renderProfileScreen = () => (
+    <>
+      <AnimatedSection delay={0}>
+        <ProfileCard
+          age={age}
+          weightKg={weightKg}
+          heightCm={heightCm}
+          primaryObjective={primaryObjective}
+          bmiInsight={bmiInsight}
+          onAgeChange={setAge}
+          onWeightChange={setWeightKg}
+          onHeightChange={setHeightCm}
+          onObjectiveChange={setPrimaryObjective}
+          onSave={() => void handleSaveProfile()}
+          isBusy={isBusy}
+          isComplete={Boolean(profile?.onboardingCompleted)}
+        />
+      </AnimatedSection>
+
+      {history.length > 0 ? (
+        <AnimatedSection delay={80}>
+          <HistoryCard sessions={history} mealNamesById={mealNamesById} />
+        </AnimatedSection>
+      ) : null}
+    </>
+  );
+
+  const renderCurrentScreen = () => {
+    switch (currentScreen) {
+      case "sessions":
+        return renderSessionsScreen();
+      case "meals":
+        return renderMealsScreen();
+      case "qr":
+        return renderQrScreen();
+      case "profile":
+        return renderProfileScreen();
+      case "home":
+      default:
+        return renderHomeScreen();
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: screenMeta.background }]}>
+      <StatusBar style="light" />
+      <View style={styles.shell}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+        >
+          <AnimatedSection delay={0}>
+            <View style={[styles.hero, { backgroundColor: screenMeta.panel }]}>
+              <View style={[styles.heroGlow, { backgroundColor: screenMeta.glow }]} />
+              <Text style={[styles.eyebrow, { color: screenMeta.accent }]}>{screenMeta.eyebrow}</Text>
+              <Text style={styles.title}>{screenMeta.title}</Text>
+              <Text style={styles.subtitle}>{screenMeta.description}</Text>
+              <View style={styles.journeyStrip}>
+                {currentJourney.map((step) => (
+                  <View
+                    key={step.key}
+                    style={[
+                      styles.journeyChip,
+                      step.status === "done"
+                        ? styles.journeyChipDone
+                        : step.status === "current"
+                          ? [styles.journeyChipCurrent, { borderColor: screenMeta.accent }]
+                          : null,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.journeyChipText,
+                        step.status === "done"
+                          ? styles.journeyChipTextDone
+                          : step.status === "current"
+                            ? [styles.journeyChipTextCurrent, { color: screenMeta.accent }]
+                            : null,
+                      ]}
+                    >
+                      {step.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </AnimatedSection>
-        ) : null}
+
+          {feedbackMessage ? (
+            <AnimatedSection delay={40}>
+              <View
+                style={[
+                  styles.feedbackBanner,
+                  feedbackTone === "success"
+                    ? styles.feedbackSuccess
+                    : feedbackTone === "warning"
+                      ? styles.feedbackWarning
+                      : null,
+                ]}
+              >
+                <Text style={styles.feedbackEyebrow}>
+                  {feedbackTone === "success"
+                    ? "Statut"
+                    : feedbackTone === "warning"
+                      ? "Attention"
+                      : "Information"}
+                </Text>
+                <Text style={styles.feedbackText}>{feedbackMessage}</Text>
+              </View>
+            </AnimatedSection>
+          ) : null}
+
+          {renderCurrentScreen()}
+        </ScrollView>
 
         {session?.user ? (
-          <>
-            <AnimatedSection delay={220}>
-              <ProfileCard
-                age={age}
-                weightKg={weightKg}
-                heightCm={heightCm}
-                primaryObjective={primaryObjective}
-                bmiInsight={bmiInsight}
-                onAgeChange={setAge}
-                onWeightChange={setWeightKg}
-                onHeightChange={setHeightCm}
-                onObjectiveChange={setPrimaryObjective}
-                onSave={() => void handleSaveProfile()}
-                isBusy={isBusy}
-                isComplete={Boolean(profile?.onboardingCompleted)}
-              />
-            </AnimatedSection>
+          <View style={styles.tabBarWrap}>
+            <View style={styles.tabBar}>
+              {[
+                { key: "home" as ScreenKey, label: "Accueil" },
+                { key: "sessions" as ScreenKey, label: "Seances" },
+                { key: "meals" as ScreenKey, label: "Plats" },
+                { key: "qr" as ScreenKey, label: "QR" },
+                { key: "profile" as ScreenKey, label: "Profil" },
+              ].map((tab) => {
+                const enabled = canOpenScreen(tab.key);
+                const active = currentScreen === tab.key;
 
-            <AnimatedSection delay={260}>
-              <SessionSuggestionsCard
-                suggestions={sessionSuggestions}
-                onStartSuggestion={(suggestion) => void handleStartSuggestedSession(suggestion)}
-                isBusy={isBusy || showProfileOnboarding}
-              />
-            </AnimatedSection>
-
-            <AnimatedSection delay={300}>
-              <SuggestedMealsCard
-                meals={suggestedMeals}
-                goal={activeSession?.workout.goal ?? "recovery"}
-                selectedMealId={selectedMealId}
-                favoriteMealIds={profile?.favoriteMealIds ?? []}
-                onSelectMeal={setSelectedMealId}
-              />
-            </AnimatedSection>
-
-            <AnimatedSection delay={340}>
-              <MealDetailCard
-                meal={selectedMeal}
-                goal={activeSession?.workout.goal ?? "recovery"}
-                isFavorite={selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false}
-                onToggleFavorite={() => void handleToggleFavoriteMeal()}
-                onConfirmChoice={() => void handleConfirmMealChoice()}
-              />
-            </AnimatedSection>
-
-            {activeSession ? (
-              <AnimatedSection delay={380}>
-                <ActiveTokenCard
-                  token={activeToken}
-                  session={activeSession}
-                  onGenerate={() => void handleGenerateQr()}
-                  isBusy={isBusy || showProfileOnboarding}
-                />
-              </AnimatedSection>
-            ) : null}
-
-            {history.length > 0 ? (
-              <AnimatedSection delay={420}>
-                <HistoryCard sessions={history} mealNamesById={mealNamesById} />
-              </AnimatedSection>
-            ) : null}
-          </>
+                return (
+                  <Pressable
+                    key={tab.key}
+                    style={[
+                      styles.tabButton,
+                      active ? styles.tabButtonActive : null,
+                      !enabled ? styles.tabButtonDisabled : null,
+                    ]}
+                    onPress={() => openScreen(tab.key)}
+                    disabled={!enabled}
+                  >
+                    <Text
+                      style={[
+                        styles.tabButtonText,
+                        active ? styles.tabButtonTextActive : null,
+                        !enabled ? styles.tabButtonTextDisabled : null,
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         ) : null}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -904,16 +1328,17 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+  },
+  shell: {
+    flex: 1,
   },
   container: {
     padding: theme.spacing.lg,
     gap: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl,
+    paddingBottom: 132,
   },
   hero: {
     overflow: "hidden",
-    backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.xl,
     padding: theme.spacing.xl,
     borderWidth: 1,
@@ -921,41 +1346,31 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     ...mobileShadow,
   },
-  heroGlowGold: {
+  heroGlow: {
     position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(201,166,70,0.16)",
-    top: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    top: -80,
     right: -20,
   },
-  heroGlowMint: {
-    position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(111,212,168,0.12)",
-    bottom: -50,
-    left: -30,
-  },
   eyebrow: {
-    color: theme.colors.gold,
     textTransform: "uppercase",
     letterSpacing: 2.4,
     fontSize: 12,
   },
   title: {
     color: theme.colors.text,
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: "700",
     lineHeight: 40,
+    maxWidth: 340,
   },
   subtitle: {
     color: theme.colors.textSoft,
     fontSize: 15,
     lineHeight: 24,
-    maxWidth: 340,
+    maxWidth: 360,
   },
   journeyStrip: {
     flexDirection: "row",
@@ -976,8 +1391,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(111,212,168,0.28)",
   },
   journeyChipCurrent: {
-    backgroundColor: theme.colors.goldSoft,
-    borderColor: theme.colors.borderStrong,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   journeyChipText: {
     color: theme.colors.textMuted,
@@ -988,13 +1402,38 @@ const styles = StyleSheet.create({
     color: theme.colors.mint,
   },
   journeyChipTextCurrent: {
-    color: "#f1d893",
+    fontWeight: "700",
+  },
+  feedbackBanner: {
+    borderRadius: 22,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderColor: theme.colors.border,
+    gap: 6,
+  },
+  feedbackSuccess: {
+    backgroundColor: "rgba(111,212,168,0.1)",
+    borderColor: "rgba(111,212,168,0.28)",
+  },
+  feedbackWarning: {
+    backgroundColor: "rgba(201,166,70,0.12)",
+    borderColor: theme.colors.borderStrong,
+  },
+  feedbackEyebrow: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  feedbackText: {
+    color: theme.colors.text,
+    lineHeight: 20,
   },
   heroStats: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
   },
   heroPill: {
     minWidth: 94,
@@ -1042,35 +1481,159 @@ const styles = StyleSheet.create({
     color: theme.colors.textSoft,
     lineHeight: 22,
   },
-  nextActionHint: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
+  primaryCta: {
+    marginTop: 6,
+    backgroundColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
-  feedbackBanner: {
-    borderRadius: 22,
-    padding: theme.spacing.md,
+  primaryCtaText: {
+    color: theme.colors.ink,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  secondaryCta: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     borderWidth: 1,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderColor: theme.colors.border,
-    gap: 6,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
-  feedbackSuccess: {
-    backgroundColor: "rgba(111,212,168,0.1)",
-    borderColor: "rgba(111,212,168,0.28)",
+  secondaryCtaText: {
+    color: theme.colors.text,
+    fontWeight: "600",
+    textAlign: "center",
   },
-  feedbackWarning: {
-    backgroundColor: "rgba(201,166,70,0.12)",
+  summaryGrid: {
+    gap: 12,
+  },
+  summaryCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
     borderColor: theme.colors.borderStrong,
+    gap: 6,
+    ...mobileShadow,
   },
-  feedbackEyebrow: {
+  summaryLabel: {
     color: theme.colors.textMuted,
     fontSize: 11,
     textTransform: "uppercase",
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
   },
-  feedbackText: {
+  summaryValue: {
     color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+  },
+  accountCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 10,
+    ...mobileShadow,
+  },
+  accountEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+  },
+  accountEmail: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  accountHint: {
+    color: theme.colors.textMuted,
     lineHeight: 20,
+  },
+  prerequisiteCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 10,
+    ...mobileShadow,
+  },
+  prerequisiteTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  prerequisiteText: {
+    color: theme.colors.textSoft,
+    lineHeight: 22,
+  },
+  summaryBanner: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 10,
+  },
+  summaryBannerItem: {
+    gap: 4,
+  },
+  summaryBannerLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  summaryBannerValue: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+  },
+  tabBarWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
+  },
+  tabBar: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "rgba(6,10,10,0.92)",
+    borderRadius: theme.radius.xl,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  tabButton: {
+    flex: 1,
+    borderRadius: theme.radius.lg,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  tabButtonActive: {
+    backgroundColor: theme.colors.gold,
+  },
+  tabButtonDisabled: {
+    opacity: 0.42,
+  },
+  tabButtonText: {
+    color: theme.colors.textSoft,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tabButtonTextActive: {
+    color: theme.colors.ink,
+  },
+  tabButtonTextDisabled: {
+    color: theme.colors.textMuted,
   },
 });
