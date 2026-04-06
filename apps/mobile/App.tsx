@@ -23,8 +23,6 @@ import { ActiveTokenCard } from "./src/components/active-token-card";
 import { AnimatedSection } from "./src/components/animated-section";
 import { AuthCard } from "./src/components/auth-card";
 import { HistoryCard } from "./src/components/history-card";
-import { KioskMenuCard } from "./src/components/kiosk-menu-card";
-import { KioskSelectionCard } from "./src/components/kiosk-selection-card";
 import { MealDetailCard } from "./src/components/meal-detail-card";
 import { ProfileCard } from "./src/components/profile-card";
 import { SessionSuggestionsCard } from "./src/components/session-suggestions-card";
@@ -35,14 +33,12 @@ import {
   createWorkoutSession,
   fetchActiveToken,
   fetchAvailableDrinkBlends,
-  fetchAvailableKiosks,
   fetchProfile,
   fetchWorkoutHistory,
   saveProfile,
   saveSelectedMealChoice,
   saveUserPreferences,
   type DrinkBlendRecord,
-  type KioskRecord,
 } from "./src/lib/featness-data";
 import { registerForPushNotificationsAsync } from "./src/lib/notifications";
 import { getMobileSupabaseClient, isMobileSupabaseConfigured } from "./src/lib/supabase";
@@ -62,7 +58,7 @@ type JourneyStep = {
   status: "done" | "current" | "upcoming";
 };
 
-type ScreenKey = "home" | "kiosk" | "sessions" | "meals" | "qr" | "profile";
+type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile";
 
 type ScreenMeta = {
   eyebrow: string;
@@ -84,16 +80,6 @@ const SCREEN_META: Record<ScreenKey, ScreenMeta> = {
     panel: "#10211d",
     glow: "rgba(201,166,70,0.18)",
     accent: theme.colors.gold,
-  },
-  kiosk: {
-    eyebrow: "Borne",
-    title: "Les plats disponibles ici",
-    description:
-      "Choisis la borne FEATNESS presente dans la salle pour voir immediatement le menu propose sur place.",
-    background: "#07131b",
-    panel: "#10212b",
-    glow: "rgba(148,206,255,0.18)",
-    accent: "#94ceff",
   },
   sessions: {
     eyebrow: "Seances",
@@ -143,7 +129,6 @@ const TAB_ITEMS: Array<{
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }> = [
   { key: "home", label: "Home", icon: "view-dashboard-outline" },
-  { key: "kiosk", label: "Borne", icon: "storefront-outline" },
   { key: "sessions", label: "Effort", icon: "run-fast" },
   { key: "meals", label: "Plat", icon: "silverware-fork-knife" },
   { key: "qr", label: "QR", icon: "qrcode-scan" },
@@ -171,7 +156,7 @@ const HOME_PROMISES: Array<{
   {
     key: "meal",
     title: "Plat choisi vite",
-    copy: "Le repas arrive avant le QR, pas apres.",
+    copy: "Le QR se genere juste apres validation du plat.",
     icon: "food-apple-outline",
   },
 ];
@@ -234,7 +219,6 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
 function getRecommendedScreen(
   hasUser: boolean,
   hasCompletedOnboarding: boolean,
-  hasKiosk: boolean,
   hasSession: boolean,
   hasSelectedMeal: boolean,
   hasToken: boolean,
@@ -245,10 +229,6 @@ function getRecommendedScreen(
 
   if (!hasCompletedOnboarding) {
     return "profile";
-  }
-
-  if (!hasKiosk) {
-    return "kiosk";
   }
 
   if (!hasSession) {
@@ -294,8 +274,6 @@ export default function App() {
   const [history, setHistory] = useState<WorkoutSessionRecord[]>([]);
   const [activeToken, setActiveToken] = useState<DispenseTokenRecord | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSessionRecord | null>(null);
-  const [availableKiosks, setAvailableKiosks] = useState<KioskRecord[]>([]);
-  const [selectedKioskId, setSelectedKioskId] = useState<string | null>(null);
   const [availableMeals, setAvailableMeals] = useState<DrinkBlendRecord[]>([]);
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -341,11 +319,6 @@ export default function App() {
     () => suggestedMeals.find((meal) => meal.id === selectedMealId) ?? suggestedMeals[0] ?? null,
     [selectedMealId, suggestedMeals],
   );
-  const selectedKiosk = useMemo(
-    () => availableKiosks.find((kiosk) => kiosk.id === selectedKioskId) ?? null,
-    [availableKiosks, selectedKioskId],
-  );
-  const kioskHasService = Boolean(selectedKiosk?.isActive && selectedKiosk.stockUnits > 0);
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const confirmedMealId = activeSession?.selectedMealBlendId ?? null;
   const hasSelectedMeal = Boolean(confirmedMealId);
@@ -370,7 +343,6 @@ export default function App() {
       getRecommendedScreen(
         Boolean(session?.user),
         hasCompletedOnboarding,
-        kioskHasService,
         Boolean(activeSession),
         hasSelectedMeal,
         Boolean(activeToken),
@@ -380,7 +352,6 @@ export default function App() {
       activeToken,
       hasCompletedOnboarding,
       hasSelectedMeal,
-      kioskHasService,
       session?.user,
     ],
   );
@@ -404,20 +375,9 @@ export default function App() {
               : "upcoming",
       },
       {
-        key: "kiosk",
-        label: "Borne",
-        status: !session?.user
-          ? "upcoming"
-          : kioskHasService
-            ? "done"
-            : currentScreen === "kiosk"
-              ? "current"
-              : "upcoming",
-      },
-      {
         key: "session",
         label: "Seance",
-        status: !session?.user || !hasCompletedOnboarding || !kioskHasService
+        status: !session?.user || !hasCompletedOnboarding
           ? "upcoming"
           : activeSession
             ? "done"
@@ -428,7 +388,7 @@ export default function App() {
       {
         key: "meal",
         label: "Plat",
-        status: !session?.user || !hasCompletedOnboarding || !kioskHasService || !activeSession
+        status: !session?.user || !hasCompletedOnboarding || !activeSession
           ? "upcoming"
           : hasSelectedMeal
             ? "done"
@@ -439,7 +399,7 @@ export default function App() {
       {
         key: "qr",
         label: "QR",
-        status: !kioskHasService || !hasSelectedMeal
+        status: !hasSelectedMeal
           ? "upcoming"
           : activeToken
             ? "done"
@@ -454,7 +414,6 @@ export default function App() {
       currentScreen,
       hasCompletedOnboarding,
       hasSelectedMeal,
-      kioskHasService,
       session?.user,
     ],
   );
@@ -468,10 +427,6 @@ export default function App() {
       return "Commence par la fiche sante. Age, poids, taille et objectif suffisent pour debloquer la suite.";
     }
 
-    if (!kioskHasService) {
-      return "Passe par l'ecran Borne pour choisir le distributeur FEATNESS present dans ta salle et voir ce qu'il propose.";
-    }
-
     if (!activeSession) {
       return "Passe a l'ecran Seances. Tu y trouveras trois options directement basees sur ton profil.";
     }
@@ -481,16 +436,15 @@ export default function App() {
     }
 
     if (!activeToken) {
-      return "Ton repas est choisi. Le QR est pret a etre genere ensuite, sans urgence.";
+      return "Ton repas est choisi. FEATNESS va maintenant te generer un QR a presenter a la borne.";
     }
 
-    return "Tout est pret : repas choisi, QR genere, parcours termine.";
+    return "Tout est pret : repas choisi, QR genere, tu peux presenter ton telephone a la borne.";
   }, [
     activeSession,
     activeToken,
     hasCompletedOnboarding,
     hasSelectedMeal,
-    kioskHasService,
     session?.user,
   ]);
 
@@ -506,14 +460,6 @@ export default function App() {
   const latestSelectedMealName = (confirmedMealId && mealNamesById[confirmedMealId]) || null;
   const recentSessions = history.slice(0, 3);
   const mealSelectionsCount = history.filter((sessionItem) => Boolean(sessionItem.selectedMealBlendId)).length;
-  const kioskMenuMeals = useMemo(() => {
-    if (!selectedKiosk || !kioskHasService) {
-      return [];
-    }
-
-    return activeSession ? buildSuggestedMeals(availableMeals, activeSession.workout.goal, activeSession.recommendation.recommendedBlend) : availableMeals;
-  }, [activeSession, availableMeals, kioskHasService, selectedKiosk]);
-  const highlightedKioskMealIds = useMemo(() => kioskMenuMeals.slice(0, activeSession ? 3 : 1).map((meal) => meal.id), [activeSession, kioskMenuMeals]);
 
   const screenMeta = SCREEN_META[currentScreen];
 
@@ -575,8 +521,6 @@ export default function App() {
       setHistory([]);
       setActiveToken(null);
       setActiveSession(null);
-      setAvailableKiosks([]);
-      setSelectedKioskId(null);
       setAvailableMeals([]);
       setSelectedMealId(null);
       setCurrentScreen("home");
@@ -590,12 +534,11 @@ export default function App() {
 
     async function loadRuntimeData() {
       try {
-        const [nextProfile, nextHistory, nextToken, nextMeals, nextKiosks] = await Promise.all([
+        const [nextProfile, nextHistory, nextToken, nextMeals] = await Promise.all([
           fetchProfile(mobileClient, authenticatedUser),
           fetchWorkoutHistory(mobileClient, authenticatedUser.id),
           fetchActiveToken(mobileClient, authenticatedUser.id),
           fetchAvailableDrinkBlends(mobileClient),
-          fetchAvailableKiosks(mobileClient),
         ]);
 
         if (cancelled) {
@@ -613,23 +556,10 @@ export default function App() {
         setWeightKg(String(nextProfile?.weightKg ?? 78));
         setPrimaryObjective(nextProfile?.primaryObjective ?? "lose_weight");
         setHistory(nextHistory);
-        setAvailableKiosks(nextKiosks);
         setAvailableMeals(nextMeals);
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
         setActiveSession(nextActiveSession);
         setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
-        setSelectedKioskId((currentKioskId) => {
-          if (currentKioskId && nextKiosks.some((kiosk) => kiosk.id === currentKioskId)) {
-            return currentKioskId;
-          }
-
-          return (
-            nextKiosks.find((kiosk) => kiosk.isActive && kiosk.stockUnits > 0)?.id ??
-            nextKiosks.find((kiosk) => kiosk.isActive)?.id ??
-            nextKiosks[0]?.id ??
-            null
-          );
-        });
         setCurrentScreen("home");
         scrollToTop(false);
       } catch (error) {
@@ -690,26 +620,6 @@ export default function App() {
   }, [session?.user?.id, supabaseClient]);
 
   useEffect(() => {
-    if (availableKiosks.length === 0) {
-      setSelectedKioskId(null);
-      return;
-    }
-
-    setSelectedKioskId((currentKioskId) => {
-      if (currentKioskId && availableKiosks.some((kiosk) => kiosk.id === currentKioskId)) {
-        return currentKioskId;
-      }
-
-      return (
-        availableKiosks.find((kiosk) => kiosk.isActive && kiosk.stockUnits > 0)?.id ??
-        availableKiosks.find((kiosk) => kiosk.isActive)?.id ??
-        availableKiosks[0]?.id ??
-        null
-      );
-    });
-  }, [availableKiosks]);
-
-  useEffect(() => {
     if (!activeSession || suggestedMeals.length === 0) {
       setSelectedMealId(null);
       return;
@@ -741,10 +651,6 @@ export default function App() {
         return "profile";
       }
 
-      if (!kioskHasService && ["sessions", "meals", "qr"].includes(previousScreen)) {
-        return "kiosk";
-      }
-
       if (!activeSession && ["meals", "qr"].includes(previousScreen)) {
         return "sessions";
       }
@@ -755,7 +661,7 @@ export default function App() {
 
       return previousScreen;
     });
-  }, [activeSession, hasCompletedOnboarding, hasSelectedMeal, kioskHasService, session?.user]);
+  }, [activeSession, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
 
   useEffect(() => {
     const user = session?.user;
@@ -796,16 +702,14 @@ export default function App() {
     switch (screen) {
       case "home":
         return true;
-      case "kiosk":
-        return Boolean(session?.user);
       case "profile":
         return Boolean(session?.user);
       case "sessions":
-        return Boolean(session?.user && hasCompletedOnboarding && kioskHasService);
+        return Boolean(session?.user && hasCompletedOnboarding);
       case "meals":
-        return Boolean(session?.user && kioskHasService && activeSession);
+        return Boolean(session?.user && activeSession);
       case "qr":
-        return Boolean(session?.user && kioskHasService && hasSelectedMeal);
+        return Boolean(session?.user && hasSelectedMeal);
       default:
         return false;
     }
@@ -825,12 +729,6 @@ export default function App() {
     if (!hasCompletedOnboarding) {
       setFeedbackMessage("Complete d'abord la fiche sante.");
       setCurrentScreen("profile");
-      return;
-    }
-
-    if (!kioskHasService) {
-      setFeedbackMessage("Choisis d'abord une borne FEATNESS disponible.");
-      setCurrentScreen("kiosk");
       return;
     }
 
@@ -1012,7 +910,7 @@ export default function App() {
   }
 
   async function handleStartSuggestedSession(suggestion: SessionSuggestion) {
-    if (!supabaseClient || !session?.user || !profile?.onboardingCompleted || !kioskHasService) {
+    if (!supabaseClient || !session?.user || !profile?.onboardingCompleted) {
       setFeedbackMessage("Complete d'abord ton profil pour debloquer les seances suggerees.");
       return;
     }
@@ -1083,32 +981,6 @@ export default function App() {
     }
   }
 
-  function handleSelectKiosk(kioskId: string) {
-    const nextKiosk = availableKiosks.find((kiosk) => kiosk.id === kioskId) ?? null;
-
-    setSelectedKioskId(kioskId);
-    setActiveSession(null);
-    setActiveToken(null);
-    setSelectedMealId(null);
-
-    if (!nextKiosk) {
-      setFeedbackMessage("Borne introuvable.");
-      return;
-    }
-
-    if (!nextKiosk.isActive) {
-      setFeedbackMessage(`${nextKiosk.name} est actuellement inactive.`);
-      return;
-    }
-
-    if (nextKiosk.stockUnits <= 0) {
-      setFeedbackMessage(`${nextKiosk.name} est en rupture de stock.`);
-      return;
-    }
-
-    setFeedbackMessage(`${nextKiosk.name} selectionnee. Tu vois maintenant le menu disponible ici.`);
-  }
-
   async function handleConfirmMealChoice() {
     if (!selectedMeal || !activeSession || !supabaseClient || !session?.user) {
       return;
@@ -1124,9 +996,14 @@ export default function App() {
         selectedMeal.id,
       );
       await cancelActiveTokens(supabaseClient, session.user.id);
+      const nextToken = await createDispenseToken(
+        supabaseClient,
+        session.user.id,
+        updatedSession.id,
+      );
 
       setActiveSession(updatedSession);
-      setActiveToken(null);
+      setActiveToken(nextToken);
       setCurrentScreen("qr");
       scrollToTop();
       setHistory((previousHistory) =>
@@ -1135,7 +1012,7 @@ export default function App() {
         ),
       );
       setFeedbackMessage(
-        `${selectedMeal.name} retenu. Le choix est synchronise. Tu peux maintenant generer le QR si besoin.`,
+        `${selectedMeal.name} retenu. Le QR est genere, tu peux maintenant le presenter a la borne.`,
       );
     } catch (error) {
       setFeedbackMessage(
@@ -1227,12 +1104,6 @@ export default function App() {
         <AnimatedSection delay={120}>
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Borne</Text>
-              <Text style={styles.summaryValue} numberOfLines={2}>
-                {selectedKiosk?.name ?? "A choisir"}
-              </Text>
-            </View>
-            <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Objectif</Text>
               <Text style={styles.summaryValue}>
                 {formatPrimaryObjectiveLabel(primaryObjective)}
@@ -1288,6 +1159,27 @@ export default function App() {
         </AnimatedSection>
       ) : null}
 
+      <AnimatedSection delay={145}>
+        <View style={styles.homeRecapCard}>
+          <Text style={styles.sectionEyebrow}>Menu FEATNESS</Text>
+          <Text style={styles.homeRecapTitle}>Plats disponibles via QR</Text>
+          <Text style={styles.homeRecapEmpty}>
+            Tu choisis ton plat dans l&apos;app, FEATNESS genere le QR, puis tu le presentes a la borne pour recuperer ton repas.
+          </Text>
+          <View style={styles.recapList}>
+            {availableMeals.slice(0, 3).map((meal) => (
+              <View key={meal.id} style={styles.recapItem}>
+                <View style={styles.recapPrimary}>
+                  <Text style={styles.recapTitle}>{meal.name}</Text>
+                  <Text style={styles.recapMeta}>{meal.description}</Text>
+                </View>
+                <Text style={styles.recapDuration}>{meal.priceEur.toFixed(2)} EUR</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </AnimatedSection>
+
       <AnimatedSection delay={150}>
         <View style={styles.premiumStrip}>
           {HOME_PROMISES.map((promise) => (
@@ -1323,50 +1215,6 @@ export default function App() {
     </>
   );
 
-  const renderKioskScreen = () => {
-    if (!session?.user) {
-      return (
-        <AnimatedSection delay={0}>
-          <View style={styles.prerequisiteCard}>
-            <Text style={styles.prerequisiteTitle}>Connecte-toi d'abord</Text>
-            <Text style={styles.prerequisiteText}>
-              La borne et son menu deviennent visibles une fois ton compte FEATNESS ouvert.
-            </Text>
-            <Pressable style={styles.primaryCta} onPress={() => openScreen("home")}>
-              <Text style={styles.primaryCtaText}>Retour a l'accueil</Text>
-            </Pressable>
-          </View>
-        </AnimatedSection>
-      );
-    }
-
-    return (
-      <>
-        <AnimatedSection delay={0}>
-          <KioskSelectionCard
-            kiosks={availableKiosks}
-            selectedKioskId={selectedKioskId}
-            onSelect={handleSelectKiosk}
-          />
-        </AnimatedSection>
-        <AnimatedSection delay={80}>
-          <KioskMenuCard
-            kiosk={selectedKiosk}
-            meals={kioskMenuMeals}
-            highlightedMealIds={highlightedKioskMealIds}
-          />
-        </AnimatedSection>
-        {kioskHasService ? (
-          <AnimatedSection delay={130}>
-            <Pressable style={styles.primaryCta} onPress={() => openScreen("sessions")}>
-              <Text style={styles.primaryCtaText}>Continuer vers les seances</Text>
-            </Pressable>
-          </AnimatedSection>
-        ) : null}
-      </>
-    );
-  };
-
   const renderSessionsScreen = () => {
     if (!session?.user || !hasCompletedOnboarding) {
       return (
@@ -1379,22 +1227,6 @@ export default function App() {
             </Text>
             <Pressable style={styles.primaryCta} onPress={() => openScreen("profile")}>
               <Text style={styles.primaryCtaText}>Aller au profil</Text>
-            </Pressable>
-          </View>
-        </AnimatedSection>
-      );
-    }
-
-    if (!kioskHasService) {
-      return (
-        <AnimatedSection delay={0}>
-          <View style={styles.prerequisiteCard}>
-            <Text style={styles.prerequisiteTitle}>Choisis d'abord une borne</Text>
-            <Text style={styles.prerequisiteText}>
-              FEATNESS doit savoir quelle borne tu utilises pour te montrer le menu disponible ici.
-            </Text>
-            <Pressable style={styles.primaryCta} onPress={() => openScreen("kiosk")}>
-              <Text style={styles.primaryCtaText}>Aller aux bornes</Text>
             </Pressable>
           </View>
         </AnimatedSection>
@@ -1414,10 +1246,6 @@ export default function App() {
               <Text style={styles.summaryBannerValue}>
                 {formatPrimaryObjectiveLabel(primaryObjective)}
               </Text>
-            </View>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Borne</Text>
-              <Text style={styles.summaryBannerValue}>{selectedKiosk?.name ?? "Borne"}</Text>
             </View>
           </View>
         </AnimatedSection>
@@ -1454,10 +1282,6 @@ export default function App() {
       <>
         <AnimatedSection delay={0}>
           <View style={[styles.summaryBanner, styles.summaryBannerSuccess]}>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Borne</Text>
-              <Text style={styles.summaryBannerValue}>{selectedKiosk?.name ?? "Borne FEATNESS"}</Text>
-            </View>
             <View style={styles.summaryBannerItem}>
               <Text style={styles.summaryBannerLabel}>Seance prise en compte</Text>
               <Text style={styles.summaryBannerValue}>
@@ -1577,8 +1401,6 @@ export default function App() {
 
   const renderCurrentScreen = () => {
     switch (currentScreen) {
-      case "kiosk":
-        return renderKioskScreen();
       case "sessions":
         return renderSessionsScreen();
       case "meals":
