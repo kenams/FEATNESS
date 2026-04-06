@@ -59,7 +59,6 @@ type JourneyStep = {
 };
 
 type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile";
-type MealViewKey = "recommended" | "objective" | "all";
 
 type ScreenMeta = {
   eyebrow: string;
@@ -437,7 +436,6 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
-  const [mealView, setMealView] = useState<MealViewKey>("recommended");
   const scrollRef = useRef<ScrollView | null>(null);
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const screenTranslateY = useRef(new Animated.Value(0)).current;
@@ -757,7 +755,6 @@ export default function App() {
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
       setActiveSession(nextActiveSession);
       setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
-      setMealView("recommended");
       setCurrentScreen("home");
       scrollToTop(false);
       } catch (error) {
@@ -1061,7 +1058,6 @@ export default function App() {
   async function handleSignOut() {
     if (!supabaseClient) {
       setSession(null);
-      setMealView("recommended");
       setCurrentScreen("home");
       setFeedbackMessage("Mode demo : aucune session distante a fermer.");
       return;
@@ -1070,7 +1066,6 @@ export default function App() {
     setIsBusy(true);
     const { error } = await supabaseClient.auth.signOut();
     setIsBusy(false);
-    setMealView("recommended");
     setCurrentScreen("home");
     scrollToTop();
     setFeedbackMessage(error ? error.message : "Session fermee.");
@@ -1145,7 +1140,6 @@ export default function App() {
         buildNutritionRecommendation(workout),
         `${suggestion.title} lancee. Tu arrives maintenant directement sur les plats recommandes.`,
       );
-      setMealView("recommended");
       setCurrentScreen("meals");
       scrollToTop();
     } catch (error) {
@@ -1522,8 +1516,6 @@ export default function App() {
             menuTitle="Tous les plats FEATNESS disponibles a la borne"
             selectedMealId={selectedMealId}
             favoriteMealIds={profile?.favoriteMealIds ?? []}
-            mealView={mealView}
-            onMealViewChange={setMealView}
             onSelectMeal={handleSelectMeal}
             onQuickConfirmRecommended={() =>
               void handleConfirmMealChoice(selectedMealId ?? suggestedMeals[0]?.id ?? null)

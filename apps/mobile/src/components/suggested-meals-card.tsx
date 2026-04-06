@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import type { GoalKey } from "@featness/shared";
 
@@ -11,8 +12,6 @@ type SuggestedMeal = DrinkBlendRecord & {
   score: number;
 };
 
-type MealViewKey = "recommended" | "objective" | "all";
-
 type SuggestedMealsCardProps = {
   recommendedMeals: SuggestedMeal[];
   objectiveMeals: SuggestedMeal[];
@@ -21,10 +20,8 @@ type SuggestedMealsCardProps = {
   objectiveTitle: string;
   objectiveCopy: string;
   menuTitle: string;
-  mealView: MealViewKey;
   selectedMealId: string | null;
   favoriteMealIds: string[];
-  onMealViewChange: (view: MealViewKey) => void;
   onSelectMeal: (mealId: string) => void;
   onQuickConfirmRecommended: () => void;
   onToggleFavorite: () => void;
@@ -75,6 +72,38 @@ function getEffortLabel(category: DrinkBlendRecord["effortCategory"]): string {
   }
 }
 
+function getMealIcon(slug: string): keyof typeof MaterialCommunityIcons.glyphMap {
+  if (slug.includes("saumon") || slug.includes("thon") || slug.includes("cabillaud") || slug.includes("poke")) {
+    return "fish";
+  }
+
+  if (slug.includes("omelette") || slug.includes("oeufs")) {
+    return "egg-outline";
+  }
+
+  if (slug.includes("wrap") || slug.includes("burrito")) {
+    return "wrap";
+  }
+
+  if (slug.includes("porridge") || slug.includes("skyr") || slug.includes("bol-recovery")) {
+    return "bowl-mix-outline";
+  }
+
+  if (slug.includes("pates") || slug.includes("gnocchis") || slug.includes("nouilles")) {
+    return "pasta";
+  }
+
+  if (slug.includes("riz") || slug.includes("quinoa") || slug.includes("bowl")) {
+    return "rice";
+  }
+
+  return "food-variant";
+}
+
+function getRecommendationLabel(isRecommended: boolean): string {
+  return isRecommended ? "Recommande FEATNESS" : "Non prioritaire";
+}
+
 export function SuggestedMealsCard({
   recommendedMeals,
   objectiveMeals,
@@ -83,10 +112,8 @@ export function SuggestedMealsCard({
   objectiveTitle,
   objectiveCopy,
   menuTitle,
-  mealView,
   selectedMealId,
   favoriteMealIds,
-  onMealViewChange,
   onSelectMeal,
   onQuickConfirmRecommended,
   onToggleFavorite,
@@ -95,6 +122,11 @@ export function SuggestedMealsCard({
   isBusy,
 }: SuggestedMealsCardProps) {
   const [showDetails, setShowDetails] = useState(false);
+
+  const recommendedIds = useMemo(
+    () => new Set(recommendedMeals.map((meal) => meal.id)),
+    [recommendedMeals],
+  );
 
   const selectedMeal = useMemo(
     () =>
@@ -106,19 +138,15 @@ export function SuggestedMealsCard({
     [allMeals, objectiveMeals, recommendedMeals, selectedMealId],
   );
 
-  const listMeals = useMemo(() => {
-    switch (mealView) {
-      case "objective":
-        return objectiveMeals;
-      case "all":
-        return allMeals;
-      case "recommended":
-      default:
-        return recommendedMeals;
-    }
-  }, [allMeals, mealView, objectiveMeals, recommendedMeals]);
+  const visibleRecommendedMeals = useMemo(
+    () => recommendedMeals.filter((meal) => meal.id !== selectedMeal?.id),
+    [recommendedMeals, selectedMeal?.id],
+  );
 
-  const visibleMeals = listMeals.filter((meal) => meal.id !== selectedMeal?.id);
+  const visibleOtherMeals = useMemo(
+    () => allMeals.filter((meal) => meal.id !== selectedMeal?.id && !recommendedIds.has(meal.id)),
+    [allMeals, recommendedIds, selectedMeal?.id],
+  );
 
   if (!selectedMeal) {
     return null;
@@ -127,45 +155,30 @@ export function SuggestedMealsCard({
   return (
     <View style={styles.card}>
       <Text style={styles.cardEyebrow}>Plats</Text>
-      <Text style={styles.cardTitle}>Choix rapide FEATNESS</Text>
+      <Text style={styles.cardTitle}>Choisis ton plat en un coup d'oeil</Text>
       <Text style={styles.helperText}>
-        Le plat choisi remonte tout en haut. Tu peux ensuite comparer par reco, par objectif
-        ou via tout le menu.
+        Vert = FEATNESS recommande pour ta seance. Rouge = disponible a la borne mais moins prioritaire.
       </Text>
 
-      <View style={styles.segmentedTabs}>
-        <MealTab
-          label="Pour toi"
-          active={mealView === "recommended"}
-          onPress={() => onMealViewChange("recommended")}
-        />
-        <MealTab
-          label="Objectif"
-          active={mealView === "objective"}
-          onPress={() => onMealViewChange("objective")}
-        />
-        <MealTab
-          label="Menu borne"
-          active={mealView === "all"}
-          onPress={() => onMealViewChange("all")}
-        />
-      </View>
-
       <View style={styles.selectedCard}>
-        <View style={styles.selectedHeader}>
-          <View style={styles.selectedCopy}>
-            <Text style={styles.selectedEyebrow}>Choix retenu</Text>
-            <Text style={styles.selectedTitle}>{selectedMeal.name}</Text>
-            <Text style={styles.selectedDescription} numberOfLines={2}>
-              {selectedMeal.description}
-            </Text>
-          </View>
-          <View style={styles.pricePill}>
-            <Text style={styles.pricePillText}>{formatCurrency(selectedMeal.priceEur)}</Text>
+        <View style={styles.selectedTopRow}>
+          <MealThumb meal={selectedMeal} large />
+          <View style={styles.selectedHeader}>
+            <View style={styles.selectedCopy}>
+              <Text style={styles.selectedEyebrow}>Choix retenu</Text>
+              <Text style={styles.selectedTitle}>{selectedMeal.name}</Text>
+              <Text style={styles.selectedDescription} numberOfLines={2}>
+                {selectedMeal.description}
+              </Text>
+            </View>
+            <View style={styles.pricePill}>
+              <Text style={styles.pricePillText}>{formatCurrency(selectedMeal.priceEur)}</Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.primaryTags}>
+          <RecommendationPill recommended />
           <Tag label={GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal} />
           <Tag label={getEffortLabel(selectedMeal.effortCategory)} />
           <Tag label={`${selectedMeal.proteinG} g prot`} />
@@ -173,7 +186,7 @@ export function SuggestedMealsCard({
         </View>
 
         <View style={styles.fastReason}>
-          <Text style={styles.fastReasonTitle}>Pourquoi ce choix</Text>
+          <Text style={styles.fastReasonTitle}>Pourquoi FEATNESS le pousse</Text>
           <Text style={styles.fastReasonCopy}>{GOAL_COPY[goal]}</Text>
         </View>
 
@@ -241,80 +254,141 @@ export function SuggestedMealsCard({
       </View>
 
       <View style={styles.contextPanel}>
-        <Text style={styles.contextTitle}>
-          {mealView === "recommended"
-            ? "Plats les plus coherents avec ta seance"
-            : mealView === "objective"
-              ? objectiveTitle
-              : menuTitle}
-        </Text>
+        <Text style={styles.contextTitle}>Classement automatique FEATNESS</Text>
         <Text style={styles.contextCopy}>
-          {mealView === "recommended"
-            ? "FEATNESS trie d'abord pour toi : effort, objectif et recuperation."
-            : mealView === "objective"
-              ? objectiveCopy
-              : "Liste complete des plats disponibles sur une borne FEATNESS via QR."}
+          {objectiveTitle} : {objectiveCopy}
         </Text>
+        <Text style={styles.contextSecondary}>{menuTitle}</Text>
       </View>
 
-      {visibleMeals.length > 0 ? (
-        <View style={styles.list}>
-          {visibleMeals.map((meal) => {
-            const isSelected = meal.id === selectedMealId;
-
-            return (
-              <Pressable
-                key={`${mealView}-${meal.id}`}
-                style={[styles.alternativeCard, isSelected ? styles.alternativeCardSelected : null]}
+      {visibleRecommendedMeals.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recommandes pour toi</Text>
+          <Text style={styles.sectionCopy}>
+            Ceux-ci sont les plus coherents avec ta seance et ton objectif du moment.
+          </Text>
+          <View style={styles.list}>
+            {visibleRecommendedMeals.map((meal) => (
+              <MealListItem
+                key={`recommended-${meal.id}`}
+                meal={meal}
+                isRecommended
+                isFavorite={favoriteMealIds.includes(meal.id)}
+                isSelected={meal.id === selectedMealId}
                 onPress={() => onSelectMeal(meal.id)}
-              >
-                <View style={styles.alternativeHeader}>
-                  <View style={styles.alternativeCopy}>
-                    <Text style={styles.alternativeEyebrow}>
-                      {mealView === "all" ? getEffortLabel(meal.effortCategory) : `Option ${meal.rank}`}
-                    </Text>
-                    <Text style={styles.alternativeName}>{meal.name}</Text>
-                    <Text style={styles.alternativeDescription} numberOfLines={2}>
-                      {meal.description}
-                    </Text>
-                  </View>
-                  <Text style={styles.alternativePrice}>{formatCurrency(meal.priceEur)}</Text>
-                </View>
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
 
-                <View style={styles.alternativeTags}>
-                  <Tag label={GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal} compact />
-                  <Tag label={`${meal.proteinG} g prot`} compact />
-                  <Tag label={`${meal.calories} kcal`} compact />
-                  {favoriteMealIds.includes(meal.id) ? <Tag label="Favori" compact highlighted /> : null}
-                </View>
-
-                <View style={[styles.switchButton, isSelected ? styles.switchButtonSelected : null]}>
-                  <Text style={[styles.switchButtonText, isSelected ? styles.switchButtonTextSelected : null]}>
-                    {isSelected ? "Selectionne" : "Choisir ce plat"}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
+      {visibleOtherMeals.length > 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tous les plats de la borne</Text>
+          <Text style={styles.sectionCopy}>
+            Disponibles a la borne FEATNESS, mais moins pertinents que les recommandations vertes.
+          </Text>
+          <View style={styles.list}>
+            {visibleOtherMeals.map((meal) => (
+              <MealListItem
+                key={`menu-${meal.id}`}
+                meal={meal}
+                isRecommended={false}
+                isFavorite={favoriteMealIds.includes(meal.id)}
+                isSelected={meal.id === selectedMealId}
+                onPress={() => onSelectMeal(meal.id)}
+              />
+            ))}
+          </View>
         </View>
       ) : null}
     </View>
   );
 }
 
-function MealTab({
-  label,
-  active,
+function MealThumb({ meal, large = false }: { meal: SuggestedMeal; large?: boolean }) {
+  const icon = getMealIcon(meal.slug);
+
+  return (
+    <View
+      style={[
+        styles.thumb,
+        large ? styles.thumbLarge : null,
+        {
+          backgroundColor: `${meal.accent}22`,
+          borderColor: `${meal.accent}66`,
+        },
+      ]}
+    >
+      <View style={[styles.thumbGlow, { backgroundColor: `${meal.accent}44` }]} />
+      <MaterialCommunityIcons name={icon} size={large ? 34 : 24} color={meal.accent} />
+      <Text style={styles.thumbLabel}>{getEffortLabel(meal.effortCategory)}</Text>
+    </View>
+  );
+}
+
+function MealListItem({
+  meal,
+  isRecommended,
+  isFavorite,
+  isSelected,
   onPress,
 }: {
-  label: string;
-  active: boolean;
+  meal: SuggestedMeal;
+  isRecommended: boolean;
+  isFavorite: boolean;
+  isSelected: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable style={[styles.tabChip, active ? styles.tabChipActive : null]} onPress={onPress}>
-      <Text style={[styles.tabChipText, active ? styles.tabChipTextActive : null]}>{label}</Text>
+    <Pressable
+      style={[
+        styles.listCard,
+        isRecommended ? styles.listCardRecommended : styles.listCardSecondary,
+        isSelected ? styles.listCardSelected : null,
+      ]}
+      onPress={onPress}
+    >
+      <MealThumb meal={meal} />
+      <View style={styles.listBody}>
+        <View style={styles.listHeader}>
+          <View style={styles.listCopy}>
+            <Text style={styles.listTitle}>{meal.name}</Text>
+            <Text style={styles.listDescription} numberOfLines={2}>
+              {meal.description}
+            </Text>
+          </View>
+          <Text style={styles.listPrice}>{formatCurrency(meal.priceEur)}</Text>
+        </View>
+
+        <View style={styles.listMeta}>
+          <RecommendationPill recommended={isRecommended} />
+          <Tag label={GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal} compact />
+          <Tag label={`${meal.proteinG} g prot`} compact />
+          {isFavorite ? <Tag label="Favori" compact highlighted /> : null}
+        </View>
+
+        <View style={styles.listFooter}>
+          <Text style={styles.listFooterText}>
+            {getEffortLabel(meal.effortCategory)} · {meal.calories} kcal · {getPreparationEta(meal.preparationType)}
+          </Text>
+          <Text style={[styles.selectText, isSelected ? styles.selectTextActive : null]}>
+            {isSelected ? "Selectionne" : "Choisir"}
+          </Text>
+        </View>
+      </View>
     </Pressable>
+  );
+}
+
+function RecommendationPill({ recommended }: { recommended: boolean }) {
+  return (
+    <View style={[styles.recoPill, recommended ? styles.recoPillYes : styles.recoPillNo]}>
+      <View style={[styles.recoDot, recommended ? styles.recoDotYes : styles.recoDotNo]} />
+      <Text style={[styles.recoText, recommended ? styles.recoTextYes : styles.recoTextNo]}>
+        {getRecommendationLabel(recommended)}
+      </Text>
+    </View>
   );
 }
 
@@ -369,33 +443,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
-  segmentedTabs: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  tabChip: {
-    flexGrow: 1,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-  },
-  tabChipActive: {
-    backgroundColor: theme.colors.goldSoft,
-    borderColor: theme.colors.borderStrong,
-  },
-  tabChipText: {
-    color: theme.colors.textSoft,
-    fontWeight: "700",
-    textAlign: "center",
-    fontSize: 12,
-  },
-  tabChipTextActive: {
-    color: "#f1d893",
-  },
   selectedCard: {
     borderRadius: 22,
     padding: 16,
@@ -404,7 +451,13 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderStrong,
     gap: 12,
   },
+  selectedTopRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "stretch",
+  },
   selectedHeader: {
+    flex: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
@@ -442,10 +495,79 @@ const styles = StyleSheet.create({
     color: "#f1d893",
     fontWeight: "700",
   },
+  thumb: {
+    width: 74,
+    height: 74,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    overflow: "hidden",
+    position: "relative",
+  },
+  thumbLarge: {
+    width: 94,
+    height: 94,
+    borderRadius: 24,
+  },
+  thumbGlow: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    top: -14,
+    right: -12,
+  },
+  thumbLabel: {
+    color: theme.colors.textSoft,
+    fontSize: 10,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 4,
+  },
   primaryTags: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  recoPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  recoPillYes: {
+    backgroundColor: "rgba(111,212,168,0.16)",
+    borderColor: "rgba(111,212,168,0.34)",
+  },
+  recoPillNo: {
+    backgroundColor: "rgba(240,138,126,0.14)",
+    borderColor: "rgba(240,138,126,0.26)",
+  },
+  recoDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  recoDotYes: {
+    backgroundColor: theme.colors.mint,
+  },
+  recoDotNo: {
+    backgroundColor: theme.colors.danger,
+  },
+  recoText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  recoTextYes: {
+    color: theme.colors.mint,
+  },
+  recoTextNo: {
+    color: theme.colors.danger,
   },
   tag: {
     borderRadius: theme.radius.pill,
@@ -617,73 +739,94 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     lineHeight: 19,
   },
+  contextSecondary: {
+    color: theme.colors.textSoft,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  section: {
+    gap: 8,
+  },
+  sectionTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sectionCopy: {
+    color: theme.colors.textMuted,
+    lineHeight: 19,
+  },
   list: {
     gap: 10,
   },
-  alternativeCard: {
+  listCard: {
     borderRadius: 18,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
     gap: 10,
+    flexDirection: "row",
+    alignItems: "stretch",
   },
-  alternativeCardSelected: {
-    borderColor: "rgba(111,212,168,0.36)",
-    backgroundColor: theme.colors.mintSoft,
+  listCardRecommended: {
+    backgroundColor: "rgba(111,212,168,0.08)",
+    borderColor: "rgba(111,212,168,0.24)",
   },
-  alternativeHeader: {
+  listCardSecondary: {
+    backgroundColor: "rgba(240,138,126,0.06)",
+    borderColor: "rgba(240,138,126,0.18)",
+  },
+  listCardSelected: {
+    borderColor: theme.colors.gold,
+  },
+  listBody: {
+    flex: 1,
+    gap: 8,
+  },
+  listHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
     alignItems: "flex-start",
   },
-  alternativeCopy: {
+  listCopy: {
     flex: 1,
     gap: 4,
   },
-  alternativeEyebrow: {
-    color: theme.colors.gold,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-  },
-  alternativeName: {
+  listTitle: {
     color: theme.colors.text,
     fontSize: 16,
     fontWeight: "700",
   },
-  alternativeDescription: {
+  listDescription: {
     color: theme.colors.textMuted,
     lineHeight: 18,
   },
-  alternativePrice: {
+  listPrice: {
     color: "#f1d893",
     fontWeight: "700",
   },
-  alternativeTags: {
+  listMeta: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  switchButton: {
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  listFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
   },
-  switchButtonSelected: {
-    backgroundColor: theme.colors.mint,
-    borderColor: "rgba(111,212,168,0.32)",
+  listFooterText: {
+    color: theme.colors.textSoft,
+    fontSize: 12,
+    lineHeight: 18,
+    flex: 1,
   },
-  switchButtonText: {
+  selectText: {
     color: theme.colors.text,
-    textAlign: "center",
     fontWeight: "700",
   },
-  switchButtonTextSelected: {
-    color: theme.colors.ink,
+  selectTextActive: {
+    color: theme.colors.gold,
   },
 });
