@@ -68,6 +68,7 @@ function createDemoPayload(workout: UserWorkoutInput): KioskScanPayload {
     workout,
     recommendation,
     preparationStatus: "scanned",
+    selectedMealBlendId: null,
   };
 
   return {

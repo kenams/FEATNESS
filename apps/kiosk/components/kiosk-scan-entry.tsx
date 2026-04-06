@@ -193,12 +193,12 @@ export function KioskScanEntry() {
       <style jsx>{`
         .kiosk-home {
           min-height: 100vh;
-          background: #0a0a0a;
+          background: transparent;
           color: #ffffff;
           display: grid;
           grid-template-rows: 20vh 1fr 20vh;
           overflow: hidden;
-          padding: 24px;
+          padding: 28px;
         }
 
         .top-zone,
@@ -215,26 +215,31 @@ export function KioskScanEntry() {
 
         .scan-frame {
           position: relative;
-          width: 280px;
-          height: 280px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.03);
+          width: 320px;
+          height: 320px;
+          border-radius: 28px;
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+            rgba(8, 17, 15, 0.65);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
           overflow: hidden;
         }
 
         .activate-camera-button {
           position: absolute;
           left: 50%;
-          bottom: 18px;
+          bottom: 20px;
           transform: translateX(-50%);
           z-index: 3;
-          border: 1px solid rgba(255, 255, 255, 0.16);
-          background: rgba(17, 24, 39, 0.92);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.08);
           color: #ffffff;
           border-radius: 999px;
-          padding: 12px 18px;
+          padding: 13px 22px;
           font-size: 14px;
           font-weight: 600;
+          backdrop-filter: blur(12px);
         }
 
         .corner {
@@ -284,9 +289,10 @@ export function KioskScanEntry() {
 
         .scan-copy {
           margin: 0;
-          font-size: 16px;
+          font-size: 17px;
           color: #ffffff;
           text-align: center;
+          letter-spacing: 0.04em;
         }
 
         .scan-error {
@@ -306,10 +312,12 @@ export function KioskScanEntry() {
           align-items: center;
           gap: 10px;
           border-radius: 999px;
-          padding: 10px 14px;
-          background: rgba(255, 255, 255, 0.04);
-          color: #d1d5db;
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.06);
+          color: #ecf1ee;
           font-size: 14px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(12px);
         }
 
         .stock-chip.loading {
@@ -326,12 +334,13 @@ export function KioskScanEntry() {
           position: absolute;
           right: 0;
           bottom: 0;
-          background: transparent;
-          border: 1px solid #374151;
-          color: #6b7280;
-          font-size: 12px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #d1ddd8;
+          font-size: 13px;
           border-radius: 999px;
-          padding: 10px 14px;
+          padding: 12px 16px;
+          backdrop-filter: blur(12px);
         }
 
         .modal-backdrop {
@@ -347,14 +356,16 @@ export function KioskScanEntry() {
         .demo-modal {
           position: relative;
           width: min(440px, 100%);
-          border-radius: 24px;
-          padding: 28px;
-          background: #111827;
+          border-radius: 32px;
+          padding: 32px;
+          background:
+            linear-gradient(180deg, rgba(18, 34, 30, 0.98), rgba(11, 19, 18, 0.98));
           border: 1px solid rgba(255, 255, 255, 0.08);
           display: grid;
           justify-items: center;
-          gap: 18px;
+          gap: 20px;
           text-align: center;
+          box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
         }
 
         .close-button {
@@ -373,8 +384,8 @@ export function KioskScanEntry() {
 
         .qr-card {
           background: #ffffff;
-          padding: 16px;
-          border-radius: 20px;
+          padding: 18px;
+          border-radius: 24px;
         }
 
         .modal-copy,
@@ -393,12 +404,13 @@ export function KioskScanEntry() {
         .direct-button {
           width: 100%;
           border: none;
-          border-radius: 12px;
-          padding: 16px;
-          background: #10b981;
-          color: #ffffff;
+          border-radius: 18px;
+          padding: 18px;
+          background: linear-gradient(135deg, #d1b05a, #c19a36);
+          color: #08110f;
           font-size: 16px;
-          font-weight: 600;
+          font-weight: 700;
+          box-shadow: 0 16px 40px rgba(193, 154, 54, 0.22);
         }
 
         @keyframes pulse-corners {
@@ -422,6 +434,12 @@ export function KioskScanEntry() {
           .kiosk-home {
             grid-template-rows: auto 1fr auto;
             gap: 24px;
+            padding: 20px;
+          }
+
+          .scan-frame {
+            width: min(100%, 320px);
+            height: min(100vw - 40px, 320px);
           }
 
           .demo-button {

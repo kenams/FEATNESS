@@ -3,13 +3,21 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
   addMinutesToIso,
   type DispenseTokenRecord,
+  type GoalKey,
   type NutritionRecommendation,
+  type SportKey,
   type UserProfile,
   type UserWorkoutInput,
   type WorkoutSessionRecord,
 } from "@featness/shared";
 
 import type { DrinkBlendRecord } from "@/lib/dashboard-shared";
+
+export type UserPreferencesPayload = {
+  preferredSport: SportKey | null;
+  preferredGoal: GoalKey | null;
+  favoriteMealIds: string[];
+};
 
 function mapProfileRow(row: Record<string, unknown>): UserProfile {
   return {
@@ -18,6 +26,11 @@ function mapProfileRow(row: Record<string, unknown>): UserProfile {
     fullName: (row.full_name as string | null) ?? null,
     weightKg: row.weight_kg == null ? null : Number(row.weight_kg),
     gymName: (row.gym_name as string | null) ?? null,
+    preferredSport: (row.preferred_sport as SportKey | null) ?? null,
+    preferredGoal: (row.preferred_goal as GoalKey | null) ?? null,
+    favoriteMealIds: Array.isArray(row.favorite_meal_ids)
+      ? (row.favorite_meal_ids as string[])
+      : [],
     onboardingCompleted: Boolean(row.onboarding_completed),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -48,6 +61,7 @@ function mapSessionRow(row: Record<string, unknown>): WorkoutSessionRecord {
     },
     preparationStatus:
       row.preparation_status as WorkoutSessionRecord["preparationStatus"],
+    selectedMealBlendId: (row.selected_meal_blend_id as string | null) ?? null,
   };
 }
 
@@ -161,6 +175,29 @@ export async function createWorkoutSession(
   return mapSessionRow(data);
 }
 
+export async function saveUserPreferences(
+  client: SupabaseClient,
+  userId: string,
+  payload: UserPreferencesPayload,
+): Promise<UserProfile> {
+  const { data, error } = await client
+    .from("profiles")
+    .update({
+      preferred_sport: payload.preferredSport,
+      preferred_goal: payload.preferredGoal,
+      favorite_meal_ids: payload.favoriteMealIds,
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProfileRow(data);
+}
+
 export async function cancelActiveTokens(
   client: SupabaseClient,
   userId: string,
@@ -215,6 +252,29 @@ export async function fetchWorkoutHistory(
   }
 
   return (data ?? []).map((row) => mapSessionRow(row));
+}
+
+export async function saveSelectedMealChoice(
+  client: SupabaseClient,
+  userId: string,
+  sessionId: string,
+  mealId: string,
+): Promise<WorkoutSessionRecord> {
+  const { data, error } = await client
+    .from("workout_sessions")
+    .update({
+      selected_meal_blend_id: mealId,
+    })
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSessionRow(data);
 }
 
 export async function fetchActiveToken(

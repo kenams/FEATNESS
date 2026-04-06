@@ -58,6 +58,9 @@ export type UserProfile = {
   fullName: string | null;
   weightKg: number | null;
   gymName: string | null;
+  preferredSport: SportKey | null;
+  preferredGoal: GoalKey | null;
+  favoriteMealIds: string[];
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -71,6 +74,7 @@ export type WorkoutSessionRecord = {
   workout: UserWorkoutInput;
   recommendation: NutritionRecommendation;
   preparationStatus: PreparationStatus;
+  selectedMealBlendId: string | null;
 };
 
 export type DispenseTokenRecord = {

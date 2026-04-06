@@ -30,6 +30,7 @@ import {
   fetchProfile,
   fetchWorkoutHistory,
   saveProfile,
+  saveUserPreferences,
 } from "@/lib/user-data";
 
 type UserAppShellProps = {
@@ -138,6 +139,11 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     [goal, meals, recommendation.recommendedBlend],
   );
 
+  const mealNamesById = useMemo(
+    () => Object.fromEntries(meals.map((meal) => [meal.id, meal.name])) as Record<string, string>,
+    [meals],
+  );
+
   useEffect(() => {
     let mounted = true;
 
@@ -187,6 +193,8 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
         setFullName(nextProfile?.fullName ?? "");
         setGymName(nextProfile?.gymName ?? "");
         setWeightKg(String(nextProfile?.weightKg ?? 78));
+        setSport(nextProfile?.preferredSport ?? "running");
+        setGoal(nextProfile?.preferredGoal ?? "recovery");
         setHistory(nextHistory);
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
         setActiveSession(
@@ -269,11 +277,17 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     setFeedbackMessage(null);
 
     try {
-      const nextProfile = await saveProfile(supabase, session.user.id, {
+      const savedProfile = await saveProfile(supabase, session.user.id, {
         email: session.user.email ?? "",
         fullName: fullName.trim(),
         weightKg: Number(weightKg) || 0,
         gymName: gymName.trim(),
+      });
+
+      const nextProfile = await saveUserPreferences(supabase, session.user.id, {
+        preferredSport: sport,
+        preferredGoal: goal,
+        favoriteMealIds: savedProfile.favoriteMealIds,
       });
 
       setProfile(nextProfile);
@@ -435,6 +449,18 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                 </div>
               </div>
 
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-[#eff3f1] px-3 py-1 text-featness-muted">
+                  Sport prefere : {profile?.preferredSport ?? "non defini"}
+                </span>
+                <span className="rounded-full bg-[#eff3f1] px-3 py-1 text-featness-muted">
+                  Objectif prefere : {profile?.preferredGoal ?? "non defini"}
+                </span>
+                <span className="rounded-full bg-[#eff3f1] px-3 py-1 text-featness-muted">
+                  Favoris synchronises : {profile?.favoriteMealIds.length ?? 0}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => void handleSaveProfile()}
@@ -587,6 +613,11 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                       <span className="rounded-full bg-white px-3 py-1">
                         {recommendation.carbsG} g glucides
                       </span>
+                      {profile?.favoriteMealIds.includes(meal.id) ? (
+                        <span className="rounded-full bg-featness-ink px-3 py-1 text-white">
+                          Favori
+                        </span>
+                      ) : null}
                     </div>
                   </article>
                 ))}
@@ -615,12 +646,18 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                     <div className="rounded-[24px] bg-[#0c1412] p-4 text-sm text-white">
                       <p className="font-medium">{currentSportLabel}</p>
                       <p className="mt-2 text-white/70">
-                        {GOAL_LABELS[activeSession.workout.goal]} ·{" "}
+                        {GOAL_LABELS[activeSession.workout.goal]} /{" "}
                         {INTENSITY_LABELS[activeSession.workout.intensity]}
                       </p>
                       <p className="mt-2 text-white/70">
                         {activeSession.recommendation.recommendationSummary}
                       </p>
+                      {activeSession.selectedMealBlendId ? (
+                        <p className="mt-2 text-white/70">
+                          Plat retenu :{" "}
+                          {mealNamesById[activeSession.selectedMealBlendId] ?? "Repas FEATNESS"}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -653,7 +690,7 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                             }
                           </p>
                           <p className="text-sm text-featness-muted">
-                            {sessionItem.workout.durationMin} min ·{" "}
+                            {sessionItem.workout.durationMin} min /{" "}
                             {GOAL_LABELS[sessionItem.workout.goal]}
                           </p>
                         </div>
@@ -664,6 +701,12 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                       <p className="mt-3 text-sm text-featness-muted">
                         {sessionItem.recommendation.recommendationSummary}
                       </p>
+                      {sessionItem.selectedMealBlendId ? (
+                        <p className="mt-2 text-sm text-featness-ink">
+                          Plat retenu :{" "}
+                          {mealNamesById[sessionItem.selectedMealBlendId] ?? "Repas FEATNESS"}
+                        </p>
+                      ) : null}
                     </div>
                   ))
                 ) : (

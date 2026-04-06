@@ -39,6 +39,7 @@ type SessionRow = {
   recommended_blend: string;
   recommendation_summary: string;
   preparation_status: WorkoutSessionRecord["preparationStatus"];
+  selected_meal_blend_id: string | null;
 };
 
 type BlendRow = {
@@ -86,6 +87,7 @@ export function mapSessionRow(row: SessionRow): WorkoutSessionRecord {
       recommendationSummary: row.recommendation_summary,
     },
     preparationStatus: row.preparation_status,
+    selectedMealBlendId: row.selected_meal_blend_id,
   };
 }
 

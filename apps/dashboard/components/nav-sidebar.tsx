@@ -59,6 +59,41 @@ const links = [
     ),
   },
   {
+    href: "/admin/users",
+    label: "Utilisateurs",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path d="M16 19a4 4 0 0 0-8 0" />
+        <circle cx="12" cy="11" r="3" />
+        <path d="M19 8a2.5 2.5 0 1 1 0 5M5 8a2.5 2.5 0 1 0 0 5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/analytics",
+    label: "Analytics",
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      >
+        <path d="M4 19h16" />
+        <path d="M7 16V9" />
+        <path d="M12 16V5" />
+        <path d="M17 16v-7" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin/menu",
     label: "Menu",
     icon: (
@@ -83,7 +118,7 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
     <>
       <button
         type="button"
-        className="fixed left-4 top-4 z-30 rounded-full bg-featness-panel p-3 text-white shadow-lg lg:hidden"
+        className="fixed left-4 top-4 z-30 rounded-full border border-white/10 bg-featness-panel p-3 text-white shadow-2xl backdrop-blur lg:hidden"
         onClick={() => setIsOpen((current) => !current)}
       >
         <svg
@@ -98,16 +133,19 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
       </button>
 
       <aside
-        className={`fixed inset-y-0 left-0 z-20 flex w-[220px] flex-col justify-between bg-featness-ink px-5 py-6 text-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-20 flex w-[272px] flex-col justify-between border-r border-white/10 bg-[#0e1715]/95 px-5 py-6 text-white shadow-2xl backdrop-blur-xl transition-transform lg:static lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="grid gap-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-featness-gold">
+          <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-featness-gold">
               FEATNESS
             </p>
-            <h1 className="mt-2 text-lg font-semibold">Administration</h1>
+            <h1 className="mt-3 text-xl font-semibold">Administration</h1>
+            <p className="mt-2 text-sm text-white/60">
+              Operations, ventes, utilisateurs et supervision terrain.
+            </p>
           </div>
 
           <nav className="grid gap-2">
@@ -119,10 +157,10 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition ${
+                  className={`flex items-center gap-3 rounded-[20px] px-4 py-3 text-sm transition ${
                     active
-                      ? "bg-featness-gold text-featness-ink"
-                      : "text-white/80 hover:bg-white/5 hover:text-white"
+                      ? "bg-gradient-to-r from-featness-gold to-[#e3c46d] text-featness-ink shadow-lg"
+                      : "text-white/78 hover:bg-white/6 hover:text-white"
                   }`}
                   onClick={() => setIsOpen(false)}
                 >
@@ -135,9 +173,9 @@ export function NavSidebar({ firstName, email }: NavSidebarProps) {
         </div>
 
         <div className="grid gap-3 border-t border-white/10 pt-5">
-          <div>
+          <div className="rounded-[24px] bg-white/5 px-4 py-4">
             <p className="text-sm font-medium">{firstName}</p>
-            <p className="text-xs text-white/60">{email}</p>
+            <p className="mt-1 text-xs text-white/60">{email}</p>
           </div>
           <LogoutButton />
         </div>

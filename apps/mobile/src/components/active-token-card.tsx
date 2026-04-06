@@ -1,7 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
 import { isExpired, type DispenseTokenRecord, type WorkoutSessionRecord } from "@featness/shared";
+
+import { mobileShadow, theme } from "../theme";
 
 type ActiveTokenCardProps = {
   token: DispenseTokenRecord | null;
@@ -29,13 +32,64 @@ export function ActiveTokenCard({
   onGenerate,
   isBusy,
 }: ActiveTokenCardProps) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const nextStepCopy = token
+    ? "Ton QR est pret. Consulte maintenant les plats proposes juste en dessous et valide ton choix prefere."
+    : "Genere le QR apres ta seance pour figer la recommandation FEATNESS et debloquer les plats proposes.";
+
+  useEffect(() => {
+    if (!token) {
+      pulse.stopAnimation();
+      pulse.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+      pulse.stopAnimation();
+      pulse.setValue(0);
+    };
+  }, [pulse, token]);
+
+  const pulseScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1.08],
+  });
+
+  const pulseOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.28, 0],
+  });
+
   return (
     <View style={styles.card}>
+      <Text style={styles.eyebrow}>Qr</Text>
       <Text style={styles.cardTitle}>QR FEATNESS</Text>
       <Text style={styles.helperText}>
         Le QR code reste valide 30 minutes. La borne valide l'UUID, le statut
         et l'expiration avant preparation.
       </Text>
+      <View style={styles.callout}>
+        <Text style={styles.calloutEyebrow}>Etape suivante</Text>
+        <Text style={styles.calloutText}>{nextStepCopy}</Text>
+      </View>
 
       <Pressable
         style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
@@ -49,12 +103,30 @@ export function ActiveTokenCard({
 
       {token ? (
         <View style={styles.tokenBlock}>
-          <View style={styles.qrWrap}>
-            <QRCode value={token.id} size={168} />
+          <View style={styles.qrStage}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.qrPulse,
+                {
+                  opacity: pulseOpacity,
+                  transform: [{ scale: pulseScale }],
+                },
+              ]}
+            />
+            <View style={styles.qrWrap}>
+              <QRCode value={token.id} size={168} />
+            </View>
+          </View>
+          <View style={styles.statusRow}>
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipText}>Token {token.status}</Text>
+            </View>
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipText}>{formatRemaining(token)}</Text>
+            </View>
           </View>
           <Text style={styles.tokenId}>{token.id}</Text>
-          <Text style={styles.meta}>Statut token : {token.status}</Text>
-          <Text style={styles.meta}>Validite : {formatRemaining(token)}</Text>
           {session ? (
             <Text style={styles.meta}>
               Seance : {session.workout.sport} / {session.preparationStatus}
@@ -72,31 +144,57 @@ export function ActiveTokenCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#10201d",
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    gap: 12,
+    borderColor: theme.colors.borderStrong,
+    gap: theme.spacing.sm,
+    ...mobileShadow,
+  },
+  eyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.6,
   },
   cardTitle: {
-    color: "#f6f7f8",
-    fontSize: 20,
+    color: theme.colors.text,
+    fontSize: 24,
     fontWeight: "700",
   },
   helperText: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
+  },
+  callout: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.mintSoft,
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.2)",
+    gap: 4,
+  },
+  calloutEyebrow: {
+    color: theme.colors.mint,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  calloutText: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
   },
   primaryButton: {
-    backgroundColor: "#c9a646",
-    borderRadius: 999,
+    backgroundColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   primaryButtonText: {
-    color: "#08110f",
+    color: theme.colors.ink,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -104,28 +202,65 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   tokenBlock: {
-    backgroundColor: "#0c1816",
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: 22,
+    padding: 18,
     alignItems: "center",
     gap: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  qrStage: {
+    width: 216,
+    height: 216,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrPulse: {
+    position: "absolute",
+    width: 212,
+    height: 212,
+    borderRadius: 999,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: "rgba(201,166,70,0.18)",
   },
   qrWrap: {
-    backgroundColor: "#ffffff",
-    padding: 12,
-    borderRadius: 16,
+    backgroundColor: theme.colors.white,
+    padding: 14,
+    borderRadius: 20,
+  },
+  statusRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  statusChip: {
+    borderRadius: theme.radius.pill,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
   },
   tokenId: {
-    color: "#f6f7f8",
+    color: theme.colors.text,
     fontSize: 12,
     textAlign: "center",
   },
   meta: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     fontSize: 13,
   },
   emptyText: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     lineHeight: 20,
   },
 });

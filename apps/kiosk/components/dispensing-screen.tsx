@@ -275,7 +275,7 @@ export function DispensingScreen({
       <style jsx>{`
         .dispense-page {
           min-height: 100vh;
-          background: #0a0a0a;
+          background: transparent;
           color: #f9fafb;
           display: grid;
           place-items: center;
@@ -286,6 +286,11 @@ export function DispensingScreen({
           width: min(480px, 100%);
           display: grid;
           gap: 22px;
+          padding: 28px;
+          border-radius: 30px;
+          background: linear-gradient(180deg, rgba(17, 27, 24, 0.96), rgba(11, 19, 18, 0.98));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 28px 72px rgba(0, 0, 0, 0.26);
         }
 
         .timeline-step {
@@ -310,8 +315,8 @@ export function DispensingScreen({
           display: grid;
           place-items: center;
           border-radius: 999px;
-          background: #111827;
-          border: 1px solid #1f2937;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .check-mark {
@@ -338,8 +343,8 @@ export function DispensingScreen({
           width: 18px;
           height: 18px;
           border-radius: 999px;
-          background: #10b981;
-          box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.15);
+          background: #c9a646;
+          box-shadow: 0 0 0 8px rgba(201, 166, 70, 0.18);
         }
 
         .step-copy {
@@ -368,25 +373,25 @@ export function DispensingScreen({
         .progress-shell {
           width: 100%;
           height: 10px;
-          background: #1f2937;
+          background: rgba(255, 255, 255, 0.08);
           border-radius: 999px;
           overflow: hidden;
         }
 
         .progress-fill {
           height: 100%;
-          background: #10b981;
+          background: linear-gradient(90deg, #c9a646, #5db78d);
           border-radius: inherit;
           transition: width 1100ms ease;
         }
 
         .countdown {
-          color: #d1d5db;
+          color: #d7e4de;
           font-size: 14px;
         }
 
         .message {
-          color: #9ca3af;
+          color: #95aaa2;
           text-align: center;
           font-size: 13px;
           margin-top: 8px;

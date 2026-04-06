@@ -1,11 +1,14 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { mobileShadow, theme } from "../theme";
+
 type AuthCardProps = {
   email: string;
   password: string;
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onSignIn: () => void;
+  onSignInTest: () => void;
   onSignUp: () => void;
   onSignOut: () => void;
   isBusy: boolean;
@@ -20,6 +23,7 @@ export function AuthCard({
   onEmailChange,
   onPasswordChange,
   onSignIn,
+  onSignInTest,
   onSignUp,
   onSignOut,
   isBusy,
@@ -29,12 +33,22 @@ export function AuthCard({
 }: AuthCardProps) {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Auth mobile</Text>
+      <Text style={styles.eyebrow}>Acces</Text>
+      <Text style={styles.cardTitle}>Authentification mobile</Text>
       <Text style={styles.helperText}>
         {isConfigured
           ? "Email/password uniquement pour le MVP. Le meme projet Supabase pourra servir au mobile et a la borne."
           : "Supabase non configure. Le flux reste visible pour la demo, mais les actions d'auth sont desactivees."}
       </Text>
+
+      {isConfigured ? (
+        <View style={styles.demoHint}>
+          <Text style={styles.demoHintEyebrow}>Raccourci demo</Text>
+          <Text style={styles.demoHintText}>
+            Le bouton Connexion test ouvre directement le compte de recette FEATNESS.
+          </Text>
+        </View>
+      ) : null}
 
       <TextInput
         placeholder="Email"
@@ -77,6 +91,16 @@ export function AuthCard({
         >
           <Text style={styles.secondaryButtonText}>Creer un compte</Text>
         </Pressable>
+        <Pressable
+          style={[
+            styles.testButton,
+            (isBusy || !isConfigured) && styles.buttonDisabled,
+          ]}
+          disabled={isBusy || !isConfigured}
+          onPress={onSignInTest}
+        >
+          <Text style={styles.testButtonText}>Connexion test</Text>
+        </Pressable>
       </View>
 
       {sessionEmail ? (
@@ -96,26 +120,33 @@ export function AuthCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#10201d",
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    gap: 12,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.sm,
+    ...mobileShadow,
+  },
+  eyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.6,
   },
   cardTitle: {
-    color: "#f6f7f8",
-    fontSize: 20,
+    color: theme.colors.text,
+    fontSize: 24,
     fontWeight: "700",
   },
   input: {
-    backgroundColor: "#0c1816",
-    color: "#f6f7f8",
-    borderRadius: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    color: theme.colors.text,
+    borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: theme.colors.border,
   },
   inlineButtons: {
     flexDirection: "row",
@@ -123,52 +154,86 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   primaryButton: {
-    backgroundColor: "#c9a646",
-    borderRadius: 999,
+    backgroundColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   primaryButtonText: {
-    color: "#08110f",
+    color: theme.colors.ink,
     fontWeight: "700",
   },
   secondaryButton: {
-    borderRadius: 999,
+    borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.03)",
   },
   secondaryButtonText: {
-    color: "#f6f7f8",
+    color: theme.colors.text,
     fontWeight: "600",
+  },
+  testButton: {
+    backgroundColor: theme.colors.mintSoft,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.25)",
+  },
+  testButtonText: {
+    color: theme.colors.mint,
+    fontWeight: "700",
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   helperText: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
+  },
+  demoHint: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.mintSoft,
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.22)",
+    gap: 4,
+  },
+  demoHintEyebrow: {
+    color: theme.colors.mint,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  demoHintText: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
   },
   feedback: {
-    color: "#f7e3a5",
+    color: theme.colors.gold,
     lineHeight: 20,
   },
   sessionBlock: {
     marginTop: 4,
-    padding: 14,
-    backgroundColor: "#0c1816",
-    borderRadius: 18,
+    padding: 16,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: 20,
     gap: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   sessionTitle: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     textTransform: "uppercase",
     fontSize: 12,
   },
   sessionEmail: {
-    color: "#f6f7f8",
+    color: theme.colors.text,
     fontWeight: "700",
   },
 });

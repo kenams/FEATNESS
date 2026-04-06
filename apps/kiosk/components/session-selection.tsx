@@ -105,12 +105,12 @@ export function SessionSelection({
       <style jsx>{`
         .selection-page {
           min-height: 100vh;
-          background: #0a0a0a;
+          background: transparent;
           color: #f9fafb;
-          padding: 18px 24px 32px;
+          padding: 24px 28px 36px;
           display: grid;
           grid-template-rows: auto auto 1fr auto;
-          gap: 18px;
+          gap: 22px;
         }
 
         .header {
@@ -127,8 +127,8 @@ export function SessionSelection({
 
         .title {
           margin: 0;
-          font-size: 24px;
-          font-weight: 600;
+          font-size: 28px;
+          font-weight: 700;
           text-align: center;
         }
 
@@ -162,7 +162,7 @@ export function SessionSelection({
         .cards-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
+          gap: 18px;
           padding: 0 8px;
           align-items: stretch;
         }
@@ -170,10 +170,11 @@ export function SessionSelection({
         .meal-card {
           position: relative;
           min-width: 0;
-          background: #111827;
-          border: 1px solid #1f2937;
+          background:
+            linear-gradient(180deg, rgba(17, 27, 24, 0.96), rgba(11, 19, 18, 0.98));
+          border: 1px solid rgba(255, 255, 255, 0.08);
           color: #f9fafb;
-          border-radius: 16px;
+          border-radius: 24px;
           padding: 24px;
           display: grid;
           gap: 16px;
@@ -181,11 +182,13 @@ export function SessionSelection({
           transform: scale(1);
           transition: transform 180ms ease, border-color 180ms ease;
           overflow: hidden;
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
         }
 
         .meal-card.selected {
-          border: 2px solid #10b981;
-          transform: scale(1.02);
+          border: 2px solid #c9a646;
+          transform: translateY(-2px);
+          box-shadow: 0 28px 80px rgba(201, 166, 70, 0.16);
         }
 
         .accent-bar {
@@ -209,8 +212,8 @@ export function SessionSelection({
         }
 
         .rank-badge.primary {
-          background: #10b981;
-          color: #ffffff;
+          background: linear-gradient(135deg, #d1b05a, #c19a36);
+          color: #08110f;
           animation: pulse 2s ease-in-out infinite;
         }
 
@@ -233,7 +236,7 @@ export function SessionSelection({
         }
 
         .macro-row span {
-          background: #1f2937;
+          background: rgba(255, 255, 255, 0.06);
           border-radius: 999px;
           padding: 8px 10px;
           font-size: 12px;
@@ -243,8 +246,9 @@ export function SessionSelection({
         .price-wrap {
           margin-top: auto;
           justify-self: end;
-          font-size: 22px;
+          font-size: 24px;
           font-weight: 700;
+          color: #f2dc9c;
         }
 
         .footer {
@@ -254,14 +258,15 @@ export function SessionSelection({
 
         .confirm-button {
           width: min(560px, 100%);
-          min-height: 56px;
+          min-height: 60px;
           border: none;
-          border-radius: 12px;
-          background: #10b981;
-          color: #ffffff;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #d1b05a, #c19a36);
+          color: #08110f;
           font-size: 16px;
-          font-weight: 600;
+          font-weight: 700;
           transition: transform 120ms ease, background 120ms ease;
+          box-shadow: 0 18px 42px rgba(201, 166, 70, 0.2);
         }
 
         .confirm-button:active {

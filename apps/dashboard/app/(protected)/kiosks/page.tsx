@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 
-import { KioskCard } from "@/components/kiosk-card";
+import { KiosksGrid } from "@/components/kiosks-grid";
 import { requireOwner } from "@/lib/auth";
 import { getOwnerKiosks, getOwnerPayments } from "@/lib/data";
 
@@ -23,6 +23,8 @@ export default async function KiosksPage() {
     );
   }
 
+  const revenueByKioskObject = Object.fromEntries(revenueByKiosk.entries());
+
   return (
     <div className="grid gap-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -40,20 +42,13 @@ export default async function KiosksPage() {
         </Link>
       </header>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        {kiosks.map((kiosk) => (
-          <KioskCard
-            key={kiosk.id}
-            kiosk={kiosk}
-            revenueToday={revenueByKiosk.get(kiosk.id) ?? 0}
-          />
-        ))}
-        {kiosks.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-black/10 bg-white p-8 text-sm text-featness-muted">
-            Aucune borne pour ce compte. Creez votre premiere borne FEATNESS.
-          </div>
-        ) : null}
-      </section>
+      {kiosks.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-black/10 bg-white p-8 text-sm text-featness-muted">
+          Aucune borne pour ce compte. Creez votre premiere borne FEATNESS.
+        </div>
+      ) : (
+        <KiosksGrid kiosks={kiosks} revenueByKiosk={revenueByKioskObject} />
+      )}
     </div>
   );
 }

@@ -7,6 +7,26 @@ export type DashboardProfile = {
   role: "user" | "owner" | "admin";
 };
 
+export type DashboardUserRecord = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: DashboardProfile["role"];
+  onboardingCompleted: boolean;
+  gymName: string | null;
+  preferredSport: string | null;
+  preferredGoal: string | null;
+  favoriteMealIds: string[];
+  expoPushToken: string | null;
+  createdAt: string;
+  updatedAt: string;
+  latestWorkoutAt: string | null;
+  latestWorkoutGoal: string | null;
+  totalWorkouts: number;
+  totalPayments: number;
+  totalSpentEur: number;
+};
+
 export type KioskRecord = {
   id: string;
   name: string;
@@ -47,6 +67,63 @@ export type EnrichedOrder = PaymentRecord & {
   mealName: string;
   userName: string;
   tokenStatus: string | null;
+};
+
+export type PreferenceInsightItem = {
+  label: string;
+  value: number;
+};
+
+export type PreferenceInsights = {
+  profilesWithPreferences: number;
+  sports: PreferenceInsightItem[];
+  goals: PreferenceInsightItem[];
+  favoriteMeals: PreferenceInsightItem[];
+};
+
+export type AnalyticsRange = "7d" | "30d" | "90d";
+
+export type AnalyticsLeaderboardItem = {
+  label: string;
+  count: number;
+  revenue: number;
+};
+
+export type AnalyticsSnapshot = {
+  range: AnalyticsRange;
+  selectedKioskId: string | null;
+  selectedKioskName: string | null;
+  selectedStatus: PaymentRecord["status"] | null;
+  selectedMealId: string | null;
+  selectedMealName: string | null;
+  paidCount: number;
+  revenue: number;
+  averageTicket: number;
+  activeCustomers: number;
+  previousPaidCount: number;
+  previousRevenue: number;
+  previousAverageTicket: number;
+  previousActiveCustomers: number;
+  salesSeries: Array<{ date: string; meals: number; revenue: number }>;
+  topMeals: AnalyticsLeaderboardItem[];
+  topKiosks: AnalyticsLeaderboardItem[];
+  paymentStatuses: PreferenceInsightItem[];
+};
+
+export type OperationalAlert = {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  title: string;
+  description: string;
+  href: string;
+};
+
+export type OperationalSnapshot = {
+  alerts: OperationalAlert[];
+  lowStockCount: number;
+  inactiveKioskCount: number;
+  failedPaymentCount: number;
+  pendingPaymentCount: number;
 };
 
 export function formatCurrency(value: number): string {

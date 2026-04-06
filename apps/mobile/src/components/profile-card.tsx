@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { mobileShadow, theme } from "../theme";
+
 type ProfileCardProps = {
   fullName: string;
   weightKg: string;
@@ -25,6 +27,7 @@ export function ProfileCard({
 }: ProfileCardProps) {
   return (
     <View style={styles.card}>
+      <Text style={styles.eyebrow}>Profil</Text>
       <Text style={styles.cardTitle}>
         {isComplete ? "Profil FEATNESS" : "Onboarding FEATNESS"}
       </Text>
@@ -33,6 +36,14 @@ export function ProfileCard({
           ? "Ton profil pilote la recommandation et le QR remis a la borne."
           : "Le trigger Supabase doit creer le profil automatiquement. Ici tu completes les champs necessaires a l'onboarding."}
       </Text>
+
+      <View style={styles.statusRow}>
+        <View style={[styles.statusPill, isComplete && styles.statusPillDone]}>
+          <Text style={[styles.statusPillText, isComplete && styles.statusPillTextDone]}>
+            {isComplete ? "Onboarding termine" : "Profil a completer"}
+          </Text>
+        </View>
+      </View>
 
       <TextInput
         placeholder="Nom complet"
@@ -72,40 +83,72 @@ export function ProfileCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#10201d",
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    gap: 12,
+    borderColor: theme.colors.border,
+    gap: theme.spacing.sm,
+    ...mobileShadow,
+  },
+  eyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.6,
   },
   cardTitle: {
-    color: "#f6f7f8",
-    fontSize: 20,
+    color: theme.colors.text,
+    fontSize: 24,
     fontWeight: "700",
   },
   helperText: {
-    color: "#88a099",
+    color: theme.colors.textMuted,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
+  },
+  statusRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  statusPill: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  statusPillDone: {
+    backgroundColor: theme.colors.mintSoft,
+    borderColor: "rgba(111,212,168,0.24)",
+  },
+  statusPillText: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  statusPillTextDone: {
+    color: theme.colors.mint,
   },
   input: {
-    backgroundColor: "#0c1816",
-    color: "#f6f7f8",
-    borderRadius: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    color: theme.colors.text,
+    borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: theme.colors.border,
   },
   primaryButton: {
-    backgroundColor: "#c9a646",
-    borderRadius: 999,
+    backgroundColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   primaryButtonText: {
-    color: "#08110f",
+    color: theme.colors.ink,
     fontWeight: "700",
     textAlign: "center",
   },

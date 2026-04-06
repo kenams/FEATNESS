@@ -3,11 +3,76 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import {
   addMinutesToIso,
   type DispenseTokenRecord,
+  type GoalKey,
   type NutritionRecommendation,
+  type SportKey,
   type UserProfile,
   type UserWorkoutInput,
   type WorkoutSessionRecord,
 } from "@featness/shared";
+
+export type DrinkBlendRecord = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  targetGoal: string;
+  priceEur: number;
+  isAvailable: boolean;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  preparationType: "lyophilise" | "auto_chauffant" | "assemblage_sec";
+  accent: string;
+};
+
+export type UserPreferencesPayload = {
+  preferredSport: SportKey | null;
+  preferredGoal: GoalKey | null;
+  favoriteMealIds: string[];
+};
+
+type DrinkBlendPresentation = Pick<
+  DrinkBlendRecord,
+  "calories" | "proteinG" | "carbsG" | "fatG" | "preparationType" | "accent"
+>;
+
+const PRESENTATION_BY_SLUG: Record<string, DrinkBlendPresentation> = {
+  "hydration-electrolyte-mix": {
+    calories: 180,
+    proteinG: 12,
+    carbsG: 18,
+    fatG: 4,
+    preparationType: "assemblage_sec",
+    accent: "#6cd3ff",
+  },
+  "recovery-protein-mix": {
+    calories: 340,
+    proteinG: 28,
+    carbsG: 35,
+    fatG: 8,
+    preparationType: "auto_chauffant",
+    accent: "#ffb86b",
+  },
+  "endurance-carb-blend": {
+    calories: 290,
+    proteinG: 14,
+    carbsG: 44,
+    fatG: 6,
+    preparationType: "lyophilise",
+    accent: "#9ff58f",
+  },
+};
+
+const DEFAULT_PRESENTATION: DrinkBlendPresentation = {
+  calories: 250,
+  proteinG: 18,
+  carbsG: 30,
+  fatG: 7,
+  preparationType: "assemblage_sec",
+  accent: "#c9a646",
+};
 
 function mapProfileRow(row: Record<string, unknown>): UserProfile {
   return {
@@ -16,6 +81,11 @@ function mapProfileRow(row: Record<string, unknown>): UserProfile {
     fullName: (row.full_name as string | null) ?? null,
     weightKg: row.weight_kg == null ? null : Number(row.weight_kg),
     gymName: (row.gym_name as string | null) ?? null,
+    preferredSport: (row.preferred_sport as SportKey | null) ?? null,
+    preferredGoal: (row.preferred_goal as GoalKey | null) ?? null,
+    favoriteMealIds: Array.isArray(row.favorite_meal_ids)
+      ? (row.favorite_meal_ids as string[])
+      : [],
     onboardingCompleted: Boolean(row.onboarding_completed),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -45,6 +115,7 @@ function mapSessionRow(row: Record<string, unknown>): WorkoutSessionRecord {
       recommendationSummary: String(row.recommendation_summary),
     },
     preparationStatus: row.preparation_status as WorkoutSessionRecord["preparationStatus"],
+    selectedMealBlendId: (row.selected_meal_blend_id as string | null) ?? null,
   };
 }
 
@@ -57,6 +128,29 @@ function mapTokenRow(row: Record<string, unknown>): DispenseTokenRecord {
     createdAt: String(row.created_at),
     expiresAt: String(row.expires_at),
     consumedAt: (row.consumed_at as string | null) ?? null,
+  };
+}
+
+function mapDrinkBlendRow(row: Record<string, unknown>): DrinkBlendRecord {
+  const presentation = PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_PRESENTATION;
+
+  return {
+    id: String(row.id),
+    slug: String(row.slug),
+    name: String(row.name),
+    description: String(row.description ?? ""),
+    targetGoal: String(row.target_goal ?? ""),
+    priceEur:
+      typeof row.price_eur === "number"
+        ? row.price_eur
+        : Number(row.price_eur ?? 0),
+    isAvailable: Boolean(row.is_available),
+    calories: presentation.calories,
+    proteinG: presentation.proteinG,
+    carbsG: presentation.carbsG,
+    fatG: presentation.fatG,
+    preparationType: presentation.preparationType,
+    accent: presentation.accent,
   };
 }
 
@@ -158,6 +252,29 @@ export async function createWorkoutSession(
   return mapSessionRow(data);
 }
 
+export async function saveUserPreferences(
+  client: SupabaseClient,
+  userId: string,
+  payload: UserPreferencesPayload,
+): Promise<UserProfile> {
+  const { data, error } = await client
+    .from("profiles")
+    .update({
+      preferred_sport: payload.preferredSport,
+      preferred_goal: payload.preferredGoal,
+      favorite_meal_ids: payload.favoriteMealIds,
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapProfileRow(data);
+}
+
 export async function cancelActiveTokens(
   client: SupabaseClient,
   userId: string,
@@ -214,6 +331,29 @@ export async function fetchWorkoutHistory(
   return (data ?? []).map((row) => mapSessionRow(row));
 }
 
+export async function saveSelectedMealChoice(
+  client: SupabaseClient,
+  userId: string,
+  sessionId: string,
+  mealId: string,
+): Promise<WorkoutSessionRecord> {
+  const { data, error } = await client
+    .from("workout_sessions")
+    .update({
+      selected_meal_blend_id: mealId,
+    })
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSessionRow(data);
+}
+
 export async function fetchActiveToken(
   client: SupabaseClient,
   userId: string,
@@ -232,4 +372,20 @@ export async function fetchActiveToken(
   }
 
   return data ? mapTokenRow(data) : null;
+}
+
+export async function fetchAvailableDrinkBlends(
+  client: SupabaseClient,
+): Promise<DrinkBlendRecord[]> {
+  const { data, error } = await client
+    .from("drink_blends")
+    .select("id, slug, name, description, target_goal, price_eur, is_available")
+    .eq("is_available", true)
+    .order("name");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => mapDrinkBlendRow(row));
 }

@@ -9,11 +9,18 @@ import { getSupabaseServiceRoleClient } from "@/lib/supabase-server";
 const updateKioskSchema = z
   .object({
     stockUnits: z.number().int().min(0).optional(),
+    stockAlertThreshold: z.number().int().min(0).optional(),
     isActive: z.boolean().optional(),
   })
-  .refine((value) => value.stockUnits !== undefined || value.isActive !== undefined, {
-    message: "Aucune modification fournie",
-  });
+  .refine(
+    (value) =>
+      value.stockUnits !== undefined ||
+      value.stockAlertThreshold !== undefined ||
+      value.isActive !== undefined,
+    {
+      message: "Aucune modification fournie",
+    },
+  );
 
 type RouteContext = {
   params: Promise<{ kiosk_id: string }>;
@@ -47,6 +54,10 @@ export async function PATCH(
 
   if (parsedBody.data.stockUnits !== undefined) {
     payload.stock_units = parsedBody.data.stockUnits;
+  }
+
+  if (parsedBody.data.stockAlertThreshold !== undefined) {
+    payload.stock_alert_threshold = parsedBody.data.stockAlertThreshold;
   }
 
   if (parsedBody.data.isActive !== undefined) {

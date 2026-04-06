@@ -293,6 +293,11 @@ export function PaymentForm({
         .payment-card {
           display: grid;
           gap: 18px;
+          padding: 24px;
+          border-radius: 28px;
+          background: linear-gradient(180deg, rgba(17, 27, 24, 0.96), rgba(11, 19, 18, 0.98));
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
         }
 
         .heading-row {
@@ -304,36 +309,37 @@ export function PaymentForm({
         .heading-row h2 {
           margin: 0;
           color: #f9fafb;
-          font-size: 20px;
-          font-weight: 600;
+          font-size: 22px;
+          font-weight: 700;
         }
 
         .lock-icon {
           display: grid;
           place-items: center;
-          width: 36px;
-          height: 36px;
+          width: 42px;
+          height: 42px;
           border-radius: 999px;
-          background: rgba(16, 185, 129, 0.12);
-          color: #10b981;
+          background: rgba(201, 166, 70, 0.14);
+          color: #c9a646;
         }
 
         .card-shell {
-          background: #111827;
-          border: 1px solid #1f2937;
-          border-radius: 12px;
-          padding: 18px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 18px;
+          padding: 20px;
         }
 
         .pay-button {
           width: 100%;
-          min-height: 56px;
+          min-height: 60px;
           border: none;
-          border-radius: 12px;
-          background: #10b981;
-          color: #ffffff;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #d1b05a, #c19a36);
+          color: #08110f;
           font-size: 16px;
-          font-weight: 600;
+          font-weight: 700;
+          box-shadow: 0 18px 42px rgba(201, 166, 70, 0.2);
         }
 
         .pay-button:disabled {
@@ -342,23 +348,24 @@ export function PaymentForm({
 
         .helper {
           margin: 0;
-          color: #6b7280;
-          font-size: 11px;
+          color: #95aaa2;
+          font-size: 12px;
           text-align: center;
         }
 
         .error-box {
-          background: #450a0a;
-          color: #fca5a5;
-          border-radius: 8px;
-          padding: 12px;
+          background: rgba(240, 138, 126, 0.14);
+          color: #ffbbb3;
+          border-radius: 16px;
+          padding: 14px;
           font-size: 14px;
+          border: 1px solid rgba(240, 138, 126, 0.22);
         }
 
         .secondary-button {
-          border: 1px solid #374151;
-          border-radius: 12px;
-          background: transparent;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.04);
           color: #e5e7eb;
           padding: 12px 16px;
           font-size: 14px;

@@ -47,6 +47,7 @@ function mapSessionRow(row: Record<string, unknown>): WorkoutSessionRecord {
       recommendationSummary: String(row.recommendation_summary),
     },
     preparationStatus: row.preparation_status as WorkoutSessionRecord["preparationStatus"],
+    selectedMealBlendId: (row.selected_meal_blend_id as string | null) ?? null,
   };
 }
 
