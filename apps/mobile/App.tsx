@@ -28,6 +28,9 @@ import { HistoryCard } from "./src/components/history-card";
 import { ProfileCard } from "./src/components/profile-card";
 import { SessionSuggestionsCard } from "./src/components/session-suggestions-card";
 import { SuggestedMealsCard } from "./src/components/suggested-meals-card";
+import { Badge } from "./src/components/ui/Badge";
+import { Card } from "./src/components/ui/Card";
+import { StatCard } from "./src/components/ui/StatCard";
 import {
   clearSelectedMealChoice,
   cancelActiveTokens,
@@ -1207,24 +1210,15 @@ export default function App() {
     <>
       <AnimatedSection delay={0}>
         <View style={styles.heroStats}>
-          <View style={styles.heroPill}>
-            <Text style={styles.heroPillValue}>{session?.user ? "Connecte" : "Invite"}</Text>
-            <Text style={styles.heroPillLabel}>Etat</Text>
-          </View>
-          <View style={styles.heroPill}>
-            <Text style={styles.heroPillValue}>{history.length}</Text>
-            <Text style={styles.heroPillLabel}>Seances</Text>
-          </View>
-          <View style={styles.heroPill}>
-            <Text style={styles.heroPillValue}>{profile?.favoriteMealIds.length ?? 0}</Text>
-            <Text style={styles.heroPillLabel}>Favoris</Text>
-          </View>
+          <StatCard label="Etat" value={session?.user ? "Connecte" : "Invite"} color={theme.colors.primary} />
+          <StatCard label="Seances" value={history.length} />
+          <StatCard label="Favoris" value={profile?.favoriteMealIds.length ?? 0} />
         </View>
       </AnimatedSection>
 
       <AnimatedSection delay={70}>
-        <View style={styles.nextActionCard}>
-          <Text style={styles.sectionEyebrow}>Statut rapide</Text>
+        <Card variant="highlighted" style={styles.nextActionCard}>
+          <Badge label="Statut rapide" variant="primary" size="sm" />
           <Text style={styles.nextActionTitle}>La prochaine etape utile</Text>
           <Text style={styles.nextActionDescription}>{quickStatus}</Text>
           {session?.user ? (
@@ -1232,7 +1226,7 @@ export default function App() {
               <Text style={styles.primaryCtaText}>Ouvrir l'etape recommandee</Text>
             </Pressable>
           ) : null}
-        </View>
+        </Card>
       </AnimatedSection>
 
       {!session?.user ? (
@@ -1255,34 +1249,18 @@ export default function App() {
       ) : (
         <AnimatedSection delay={120}>
           <View style={styles.summaryGrid}>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Objectif</Text>
-              <Text style={styles.summaryValue}>
-                {formatPrimaryObjectiveLabel(primaryObjective)}
-              </Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>IMC</Text>
-              <Text style={styles.summaryValue}>{bmiInsight?.bmi ?? "--"}</Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Plat retenu</Text>
-              <Text style={styles.summaryValue} numberOfLines={2}>
-                {latestSelectedMealName ?? "Aucun pour l'instant"}
-              </Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Consommations</Text>
-              <Text style={styles.summaryValue}>{mealSelectionsCount}</Text>
-            </View>
+            <StatCard label="Objectif" value={formatPrimaryObjectiveLabel(primaryObjective)} color={theme.colors.gold} />
+            <StatCard label="IMC" value={bmiInsight?.bmi ?? "--"} />
+            <StatCard label="Plat retenu" value={latestSelectedMealName ?? "Aucun"} />
+            <StatCard label="Consommations" value={mealSelectionsCount} />
           </View>
         </AnimatedSection>
       )}
 
       {session?.user ? (
         <AnimatedSection delay={140}>
-          <View style={styles.homeRecapCard}>
-            <Text style={styles.sectionEyebrow}>Resume recent</Text>
+          <Card style={styles.homeRecapCard}>
+            <Badge label="Resume recent" variant="neutral" size="sm" />
             <Text style={styles.homeRecapTitle}>Tes dernieres seances et plats</Text>
             {recentSessions.length > 0 ? (
               <View style={styles.recapList}>
@@ -1307,13 +1285,13 @@ export default function App() {
                 Aucune seance pour l'instant. Commence par ton profil puis choisis une seance.
               </Text>
             )}
-          </View>
+          </Card>
         </AnimatedSection>
       ) : null}
 
       <AnimatedSection delay={145}>
-        <View style={styles.homeRecapCard}>
-          <Text style={styles.sectionEyebrow}>Menu FEATNESS</Text>
+        <Card style={styles.homeRecapCard}>
+          <Badge label="Menu FEATNESS" variant="warning" size="sm" />
           <Text style={styles.homeRecapTitle}>Plats disponibles via QR</Text>
           <Text style={styles.homeRecapEmpty}>
             Tu choisis ton plat dans l&apos;app, FEATNESS genere le QR, puis tu le presentes a la borne pour recuperer ton repas.
@@ -1329,13 +1307,13 @@ export default function App() {
               </View>
             ))}
           </View>
-        </View>
+        </Card>
       </AnimatedSection>
 
       <AnimatedSection delay={150}>
         <View style={styles.premiumStrip}>
           {HOME_PROMISES.map((promise) => (
-            <View key={promise.key} style={styles.premiumCard}>
+            <Card key={promise.key} style={styles.premiumCard}>
               <View style={styles.premiumIconWrap}>
                 <MaterialCommunityIcons
                   name={promise.icon}
@@ -1345,15 +1323,15 @@ export default function App() {
               </View>
               <Text style={styles.premiumTitle}>{promise.title}</Text>
               <Text style={styles.premiumCopy}>{promise.copy}</Text>
-            </View>
+            </Card>
           ))}
         </View>
       </AnimatedSection>
 
       {session?.user ? (
         <AnimatedSection delay={170}>
-          <View style={styles.accountCard}>
-            <Text style={styles.accountEyebrow}>Compte</Text>
+          <Card style={styles.accountCard}>
+            <Badge label="Compte" variant="neutral" size="sm" />
             <Text style={styles.accountEmail}>{session.user.email ?? "Compte FEATNESS"}</Text>
             <Text style={styles.accountHint}>
               Utilise les onglets du bas pour avancer sans repasser par un long scroll.
@@ -1361,7 +1339,7 @@ export default function App() {
             <Pressable style={styles.secondaryCta} onPress={() => void handleSignOut()}>
               <Text style={styles.secondaryCtaText}>Se deconnecter</Text>
             </Pressable>
-          </View>
+          </Card>
         </AnimatedSection>
       ) : null}
     </>
