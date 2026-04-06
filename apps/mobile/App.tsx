@@ -215,6 +215,33 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
   return "success";
 }
 
+function formatRuntimeError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const candidate = error as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+
+    if (candidate.message) {
+      return candidate.details
+        ? `${candidate.message} (${candidate.details})`
+        : candidate.message;
+    }
+
+    if (candidate.code) {
+      return `${fallback} [${candidate.code}]`;
+    }
+  }
+
+  return fallback;
+}
+
 function getRecommendedScreen(
   hasUser: boolean,
   hasCompletedOnboarding: boolean,
@@ -465,6 +492,7 @@ export default function App() {
       : null) ?? null;
 
   const screenMeta = SCREEN_META[currentScreen];
+  const isCompactScreen = currentScreen !== "home";
 
   function scrollToTop(animated = true) {
     scrollRef.current?.scrollTo({ y: 0, animated });
@@ -1047,9 +1075,7 @@ export default function App() {
       scrollToTop();
       setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant le presenter a la borne.");
     } catch (error) {
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Impossible de generer le QR.",
-      );
+      setFeedbackMessage(formatRuntimeError(error, "Impossible de generer le QR."));
     } finally {
       setIsBusy(false);
     }
@@ -1342,27 +1368,8 @@ export default function App() {
 
     return (
       <>
-        <AnimatedSection delay={0}>
-          <View style={[styles.summaryBanner, styles.summaryBannerNeutralStrong]}>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Recap final</Text>
-              <Text style={styles.summaryBannerValue} numberOfLines={2}>
-                {latestSelectedMealName ?? "Repas FEATNESS"}
-              </Text>
-            </View>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Seance</Text>
-              <Text style={styles.summaryBannerValue}>
-                {activeSuggestion?.title ??
-                  (activeSession
-                    ? `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
-                    : "Seance FEATNESS")}
-              </Text>
-            </View>
-          </View>
-        </AnimatedSection>
         {!activeToken ? (
-          <AnimatedSection delay={60}>
+          <AnimatedSection delay={0}>
             <View style={styles.qrRecapCard}>
               <Text style={styles.sectionEyebrow}>Validation finale</Text>
               <Text style={styles.qrRecapTitle}>Tout est pret pour generer ton QR</Text>
@@ -1399,7 +1406,7 @@ export default function App() {
           </AnimatedSection>
         ) : null}
         {activeToken ? (
-        <AnimatedSection delay={80}>
+        <AnimatedSection delay={0}>
           <ActiveTokenCard
             token={activeToken}
             session={activeSession}
@@ -1468,12 +1475,22 @@ export default function App() {
           showsVerticalScrollIndicator={false}
         >
           <AnimatedSection delay={0}>
-            <View style={[styles.hero, { backgroundColor: screenMeta.panel }]}>
+            <View
+              style={[
+                styles.hero,
+                isCompactScreen ? styles.heroCompact : null,
+                { backgroundColor: screenMeta.panel },
+              ]}
+            >
               <View style={[styles.heroGlow, { backgroundColor: screenMeta.glow }]} />
               <Text style={[styles.eyebrow, { color: screenMeta.accent }]}>{screenMeta.eyebrow}</Text>
-              <Text style={styles.title}>{screenMeta.title}</Text>
-              <Text style={styles.subtitle}>{screenMeta.description}</Text>
-              <View style={styles.journeyStrip}>
+              <Text style={[styles.title, isCompactScreen ? styles.titleCompact : null]}>
+                {screenMeta.title}
+              </Text>
+              <Text style={[styles.subtitle, isCompactScreen ? styles.subtitleCompact : null]}>
+                {screenMeta.description}
+              </Text>
+              <View style={[styles.journeyStrip, isCompactScreen ? styles.journeyStripCompact : null]}>
                 {currentJourney.map((step) => (
                   <View
                     key={step.key}
@@ -1608,6 +1625,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     ...mobileShadow,
   },
+  heroCompact: {
+    padding: theme.spacing.lg,
+    gap: 8,
+  },
   heroGlow: {
     position: "absolute",
     width: 220,
@@ -1628,17 +1649,30 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     maxWidth: 340,
   },
+  titleCompact: {
+    fontSize: 26,
+    lineHeight: 31,
+    maxWidth: 320,
+  },
   subtitle: {
     color: theme.colors.textSoft,
     fontSize: 15,
     lineHeight: 24,
     maxWidth: 360,
   },
+  subtitleCompact: {
+    fontSize: 13,
+    lineHeight: 20,
+    maxWidth: 320,
+  },
   journeyStrip: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     marginTop: theme.spacing.sm,
+  },
+  journeyStripCompact: {
+    marginTop: 4,
   },
   journeyChip: {
     paddingHorizontal: 12,
@@ -1899,24 +1933,24 @@ const styles = StyleSheet.create({
   qrRecapCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.xl,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.lg,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
-    gap: 12,
+    gap: 10,
     ...mobileShadow,
   },
   qrRecapTitle: {
     color: theme.colors.text,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
-    lineHeight: 30,
+    lineHeight: 26,
   },
   qrRecapRow: {
-    gap: 10,
+    gap: 8,
   },
   qrRecapBlock: {
     borderRadius: 18,
-    padding: 14,
+    padding: 12,
     backgroundColor: theme.colors.surfaceMuted,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -1930,14 +1964,14 @@ const styles = StyleSheet.create({
   },
   qrRecapValue: {
     color: theme.colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
-    lineHeight: 24,
+    lineHeight: 22,
     textTransform: "capitalize",
   },
   qrRecapHint: {
     color: theme.colors.textSoft,
-    lineHeight: 21,
+    lineHeight: 19,
   },
   buttonDisabled: {
     opacity: 0.6,
