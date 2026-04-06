@@ -107,6 +107,30 @@ function getRecommendationLabel(isRecommended: boolean): string {
   return isRecommended ? "Recommande FEATNESS" : "Non prioritaire";
 }
 
+function getFitLabelMeta(label: SuggestedMeal["fitLabel"]) {
+  switch (label) {
+    case "ideal":
+      return {
+        text: "Meilleur choix",
+        containerStyle: styles.fitPillIdeal,
+        textStyle: styles.fitPillTextIdeal,
+      };
+    case "solide":
+      return {
+        text: "Bon choix",
+        containerStyle: styles.fitPillSolide,
+        textStyle: styles.fitPillTextSolide,
+      };
+    case "leger":
+    default:
+      return {
+        text: "Plus leger",
+        containerStyle: styles.fitPillLeger,
+        textStyle: styles.fitPillTextLeger,
+      };
+  }
+}
+
 function groupMealsByEffort(meals: SuggestedMeal[]) {
   return {
     light: meals.filter((meal) => meal.effortCategory === "light"),
@@ -210,7 +234,8 @@ export function SuggestedMealsCard({
         </View>
 
         <View style={styles.primaryTags}>
-          <RecommendationPill recommended />
+          <RecommendationPill recommended={selectedMeal.isRecommended} />
+          <FitPill fitLabel={selectedMeal.fitLabel} />
           <Tag label={GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal} />
           <Tag label={getEffortLabel(selectedMeal.effortCategory)} />
           <Tag label={`${selectedMeal.proteinG} g prot`} />
@@ -452,6 +477,7 @@ function MealListItem({
 
         <View style={styles.listMeta}>
           <RecommendationPill recommended={isRecommended} />
+          <FitPill fitLabel={meal.fitLabel} />
           <Tag label={GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal} compact />
           <Tag label={`${meal.proteinG} g prot`} compact />
           <Tag
@@ -478,6 +504,16 @@ function MealListItem({
         </View>
       </View>
     </Pressable>
+  );
+}
+
+function FitPill({ fitLabel }: { fitLabel: SuggestedMeal["fitLabel"] }) {
+  const meta = getFitLabelMeta(fitLabel);
+
+  return (
+    <View style={[styles.fitPill, meta.containerStyle]}>
+      <Text style={[styles.fitPillText, meta.textStyle]}>{meta.text}</Text>
+    </View>
   );
 }
 
@@ -709,6 +745,37 @@ const styles = StyleSheet.create({
   },
   recoTextNo: {
     color: theme.colors.danger,
+  },
+  fitPill: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  fitPillIdeal: {
+    backgroundColor: theme.colors.goldSoft,
+    borderColor: theme.colors.borderStrong,
+  },
+  fitPillSolide: {
+    backgroundColor: "rgba(148,206,255,0.12)",
+    borderColor: "rgba(148,206,255,0.28)",
+  },
+  fitPillLeger: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: theme.colors.border,
+  },
+  fitPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  fitPillTextIdeal: {
+    color: "#f1d893",
+  },
+  fitPillTextSolide: {
+    color: "#94ceff",
+  },
+  fitPillTextLeger: {
+    color: theme.colors.textSoft,
   },
   tag: {
     borderRadius: theme.radius.pill,

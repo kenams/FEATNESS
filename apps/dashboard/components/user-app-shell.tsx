@@ -99,6 +99,27 @@ function groupMealsByEffort(meals: SuggestedMeal[]) {
   };
 }
 
+function getFitBadgeMeta(label: SuggestedMeal["fitLabel"]) {
+  switch (label) {
+    case "ideal":
+      return {
+        text: "Meilleur choix",
+        className: "bg-featness-gold/15 text-featness-gold border border-featness-gold/30",
+      };
+    case "solide":
+      return {
+        text: "Bon choix",
+        className: "bg-sky-100 text-sky-700 border border-sky-200",
+      };
+    case "leger":
+    default:
+      return {
+        text: "Plus leger",
+        className: "bg-slate-100 text-slate-700 border border-slate-200",
+      };
+  }
+}
+
 function getQuickStatus(
   hasSession: boolean,
   hasOnboarding: boolean,
@@ -627,6 +648,16 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     }
   }
 
+  function handleChangeSession() {
+    setFeedbackMessage(
+      "Choisis une autre seance. FEATNESS reclassera ensuite les plats selon ce nouvel effort.",
+    );
+    document.getElementById("user-sessions-section")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/login");
@@ -716,7 +747,7 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="grid gap-6">
-            <article className="rounded-[28px] bg-white p-6 shadow-sm">
+            <article id="user-sessions-section" className="rounded-[28px] bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-featness-gold">
@@ -805,7 +836,7 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
               </button>
             </article>
 
-            <article className="rounded-[28px] bg-white p-6 shadow-sm">
+            <article id="user-meals-section" className="rounded-[28px] bg-white p-6 shadow-sm">
               <p className="text-xs uppercase tracking-[0.24em] text-featness-gold">
                 Seances
               </p>
@@ -979,6 +1010,13 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                                           >
                                             {section.recommended ? "Recommande FEATNESS" : "Non prioritaire"}
                                           </span>
+                                          <span
+                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                              getFitBadgeMeta(meal.fitLabel).className
+                                            }`}
+                                          >
+                                            {getFitBadgeMeta(meal.fitLabel).text}
+                                          </span>
                                           <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-featness-muted">
                                             {GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal}
                                           </span>
@@ -1046,6 +1084,16 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                         </p>
                         <h3 className="mt-2 text-2xl font-semibold">{selectedMeal.name}</h3>
                         <p className="mt-3 text-sm text-white/70">{selectedMeal.description}</p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          <span
+                            className={`rounded-full px-3 py-1 font-semibold ${getFitBadgeMeta(selectedMeal.fitLabel).className}`}
+                          >
+                            {getFitBadgeMeta(selectedMeal.fitLabel).text}
+                          </span>
+                          <span className="rounded-full bg-white/10 px-3 py-1 text-white/80">
+                            {selectedMeal.fitReason}
+                          </span>
+                        </div>
                         <div className="mt-5 grid gap-3 sm:grid-cols-2">
                           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                             <p className="text-xs text-white/60">Prix</p>
@@ -1092,6 +1140,14 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                               Changer de plat
                             </button>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={handleChangeSession}
+                            disabled={isBusy}
+                            className="rounded-full border border-white/15 px-5 py-3 text-sm font-medium text-white transition hover:border-sky-300 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Changer de seance
+                          </button>
                         </div>
                       </>
                     ) : (
@@ -1139,6 +1195,16 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                   className="mt-3 w-full rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-featness-ink transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Changer de plat
+                </button>
+              ) : null}
+              {activeSession ? (
+                <button
+                  type="button"
+                  onClick={handleChangeSession}
+                  disabled={isBusy}
+                  className="mt-3 w-full rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-featness-ink transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Changer de seance
                 </button>
               ) : null}
 

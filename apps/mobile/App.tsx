@@ -526,6 +526,9 @@ export default function App() {
 
   const screenMeta = SCREEN_META[currentScreen];
   const isCompactScreen = currentScreen !== "home";
+  const showSessionsQuickBar = Boolean(
+    currentScreen === "sessions" && activeSession,
+  );
   const showMealsQuickBar = Boolean(
     currentScreen === "meals" && activeSession && selectedMeal,
   );
@@ -1167,6 +1170,13 @@ export default function App() {
     }
   }
 
+  function handleChangeSession() {
+    setFeedbackMessage(
+      "Choisis une autre seance. FEATNESS reclassera ensuite les plats pour ce nouvel effort.",
+    );
+    openScreen("sessions");
+  }
+
   const renderHomeScreen = () => (
     <>
       <AnimatedSection delay={0}>
@@ -1353,15 +1363,17 @@ export default function App() {
       <>
         <AnimatedSection delay={0}>
           <View style={styles.summaryBanner}>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>IMC</Text>
-              <Text style={styles.summaryBannerValue}>{bmiInsight?.bmi ?? "--"}</Text>
-            </View>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Objectif</Text>
-              <Text style={styles.summaryBannerValue}>
-                {formatPrimaryObjectiveLabel(primaryObjective)}
-              </Text>
+            <View style={styles.summaryBannerRow}>
+              <View style={styles.summaryBannerItem}>
+                <Text style={styles.summaryBannerLabel}>IMC</Text>
+                <Text style={styles.summaryBannerValue}>{bmiInsight?.bmi ?? "--"}</Text>
+              </View>
+              <View style={styles.summaryBannerItem}>
+                <Text style={styles.summaryBannerLabel}>Objectif</Text>
+                <Text style={styles.summaryBannerValue}>
+                  {formatPrimaryObjectiveLabel(primaryObjective)}
+                </Text>
+              </View>
             </View>
           </View>
         </AnimatedSection>
@@ -1398,19 +1410,33 @@ export default function App() {
       <>
         <AnimatedSection delay={0}>
           <View style={[styles.summaryBanner, styles.summaryBannerSuccess]}>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Seance prise en compte</Text>
-              <Text style={styles.summaryBannerValue}>
-                {activeSuggestionKey
-                  ? sessionSuggestions.find((suggestion) => suggestion.key === activeSuggestionKey)?.title ??
-                    `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
-                  : `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`}
-              </Text>
+            <View style={styles.summaryBannerRow}>
+              <View style={styles.summaryBannerItem}>
+                <Text style={styles.summaryBannerLabel}>Seance prise en compte</Text>
+                <Text style={styles.summaryBannerValue}>
+                  {activeSuggestionKey
+                    ? sessionSuggestions.find((suggestion) => suggestion.key === activeSuggestionKey)?.title ??
+                      `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
+                    : `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`}
+                </Text>
+              </View>
+              <View style={styles.summaryBannerItem}>
+                <Text style={styles.summaryBannerLabel}>Calories estimees</Text>
+                <Text style={styles.summaryBannerValue}>
+                  {sessionInsight?.caloriesBurnedEstimate ?? activeSession.recommendation.caloriesBurned} kcal
+                </Text>
+              </View>
             </View>
-            <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Calories estimees</Text>
-              <Text style={styles.summaryBannerValue}>
-                {sessionInsight?.caloriesBurnedEstimate ?? activeSession.recommendation.caloriesBurned} kcal
+            <Pressable
+              style={[styles.summaryBannerAction, isBusy && styles.buttonDisabled]}
+              onPress={handleChangeSession}
+              disabled={isBusy}
+            >
+              <Text style={styles.summaryBannerActionText}>Changer de seance</Text>
+            </Pressable>
+            <View style={styles.summaryBannerHintRow}>
+              <Text style={styles.summaryBannerHint}>
+                FEATNESS reclassera automatiquement les plats apres ton nouveau choix.
               </Text>
             </View>
           </View>
@@ -1501,6 +1527,13 @@ export default function App() {
               </Text>
               <Pressable
                 style={[styles.secondaryCta, isBusy && styles.buttonDisabled]}
+                onPress={handleChangeSession}
+                disabled={isBusy}
+              >
+                <Text style={styles.secondaryCtaText}>Changer de seance</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.secondaryCta, isBusy && styles.buttonDisabled]}
                 onPress={() => void handleClearMealChoice()}
                 disabled={isBusy}
               >
@@ -1527,6 +1560,7 @@ export default function App() {
             canGenerate={hasSelectedMeal}
             onGenerate={() => void handleGenerateQr()}
             onClearMeal={() => void handleClearMealChoice()}
+            onChangeSession={handleChangeSession}
             isBusy={isBusy}
           />
         </AnimatedSection>
@@ -1587,7 +1621,7 @@ export default function App() {
           ref={scrollRef}
           contentContainerStyle={[
             styles.container,
-            showMealsQuickBar ? styles.containerWithMealsBar : null,
+            showSessionsQuickBar || showMealsQuickBar ? styles.containerWithQuickBar : null,
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -1717,19 +1751,39 @@ export default function App() {
           </View>
         ) : null}
 
+        {showSessionsQuickBar && activeSession ? (
+          <View style={styles.quickBarWrap}>
+            <View style={styles.quickBar}>
+              <View style={styles.quickBarCopy}>
+                <Text style={styles.quickBarLabel}>Seance retenue</Text>
+                <Text style={styles.quickBarTitle} numberOfLines={1}>
+                  {activeSuggestion?.title ?? `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.quickBarButton, isBusy && styles.buttonDisabled]}
+                onPress={() => openScreen("meals")}
+                disabled={isBusy}
+              >
+                <Text style={styles.quickBarButtonText}>Aller aux plats</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         {showMealsQuickBar && selectedMeal ? (
           <View style={styles.mealsQuickBarWrap}>
-            <View style={styles.mealsQuickBar}>
-              <View style={styles.mealsQuickBarCopy}>
-                <Text style={styles.mealsQuickBarLabel}>
+            <View style={styles.quickBar}>
+              <View style={styles.quickBarCopy}>
+                <Text style={styles.quickBarLabel}>
                   {selectedMealIsConfirmed ? "Plat valide" : "Plat selectionne"}
                 </Text>
-                <Text style={styles.mealsQuickBarTitle} numberOfLines={1}>
+                <Text style={styles.quickBarTitle} numberOfLines={1}>
                   {selectedMeal.name}
                 </Text>
               </View>
               <Pressable
-                style={[styles.mealsQuickBarButton, isBusy && styles.buttonDisabled]}
+                style={[styles.quickBarButton, isBusy && styles.buttonDisabled]}
                 onPress={() =>
                   selectedMealIsConfirmed
                     ? openScreen("qr")
@@ -1737,7 +1791,7 @@ export default function App() {
                 }
                 disabled={isBusy}
               >
-                <Text style={styles.mealsQuickBarButtonText}>
+                <Text style={styles.quickBarButtonText}>
                   {isBusy
                     ? "Validation..."
                     : selectedMealIsConfirmed
@@ -1765,7 +1819,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     paddingBottom: 132,
   },
-  containerWithMealsBar: {
+  containerWithQuickBar: {
     paddingBottom: 220,
   },
   hero: {
@@ -2059,6 +2113,11 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     gap: 10,
   },
+  summaryBannerRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
   summaryBannerSuccess: {
     backgroundColor: theme.colors.mintSoft,
     borderColor: "rgba(111,212,168,0.24)",
@@ -2069,6 +2128,8 @@ const styles = StyleSheet.create({
   },
   summaryBannerItem: {
     gap: 4,
+    flex: 1,
+    minWidth: 136,
   },
   summaryBannerLabel: {
     color: theme.colors.textMuted,
@@ -2081,6 +2142,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     lineHeight: 26,
+  },
+  summaryBannerAction: {
+    alignSelf: "flex-start",
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  summaryBannerActionText: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  summaryBannerHintRow: {
+    gap: 4,
+  },
+  summaryBannerHint: {
+    color: theme.colors.textSoft,
+    lineHeight: 18,
   },
   qrRecapCard: {
     backgroundColor: theme.colors.surface,
@@ -2195,6 +2276,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
+  quickBarWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 92,
+    paddingHorizontal: theme.spacing.md,
+  },
   mealsQuickBarWrap: {
     position: "absolute",
     left: 0,
@@ -2202,7 +2290,7 @@ const styles = StyleSheet.create({
     bottom: 92,
     paddingHorizontal: theme.spacing.md,
   },
-  mealsQuickBar: {
+  quickBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -2212,28 +2300,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  mealsQuickBarCopy: {
+  quickBarCopy: {
     flex: 1,
     gap: 2,
   },
-  mealsQuickBarLabel: {
+  quickBarLabel: {
     color: theme.colors.textMuted,
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 1.1,
   },
-  mealsQuickBarTitle: {
+  quickBarTitle: {
     color: theme.colors.text,
     fontSize: 15,
     fontWeight: "700",
   },
-  mealsQuickBarButton: {
+  quickBarButton: {
     borderRadius: theme.radius.pill,
     backgroundColor: theme.colors.gold,
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
-  mealsQuickBarButtonText: {
+  quickBarButtonText: {
     color: theme.colors.ink,
     fontWeight: "700",
   },
