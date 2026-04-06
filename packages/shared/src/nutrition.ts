@@ -13,15 +13,35 @@ function roundToNearest(value: number, step: number): number {
 }
 
 function getBlendLabel(goal: GoalKey, durationMin: number, calories: number): string {
-  if (goal === "performance" || durationMin >= 60) {
-    return "Endurance Carb Blend";
+  if (goal === "performance") {
+    if (durationMin >= 75 || calories >= 700) {
+      return "Poulet teriyaki maison + nouilles de riz";
+    }
+
+    if (durationMin >= 60 || calories >= 550) {
+      return "Poke bowl thon-riz-mangue";
+    }
+
+    return "Burrito bowl dinde-riz";
   }
 
   if (goal === "recovery" || calories >= 450) {
-    return "Recovery Protein Mix";
+    if (durationMin >= 60 || calories >= 600) {
+      return "Poulet, patate douce, brocoli";
+    }
+
+    if (durationMin >= 45) {
+      return "Chili leger recuperation";
+    }
+
+    return "Bowl poulet, riz, courgette";
   }
 
-  return "Hydration Electrolyte Mix";
+  if (durationMin >= 45 || calories >= 350) {
+    return "Porridge proteine post-cardio";
+  }
+
+  return "Skyr bowl banane-flocons d'avoine";
 }
 
 export function calculateBmi(weightKg: number, heightCm: number): BmiInsight | null {
