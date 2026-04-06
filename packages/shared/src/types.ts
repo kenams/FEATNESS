@@ -106,6 +106,7 @@ export type WorkoutSessionRecord = {
   preparationStatus: PreparationStatus;
   selectedMealBlendId: string | null;
   isFavorite: boolean;
+  userNote: string | null;
 };
 
 export type DispenseTokenRecord = {

@@ -41,6 +41,7 @@ type SessionRow = {
   preparation_status: WorkoutSessionRecord["preparationStatus"];
   selected_meal_blend_id: string | null;
   is_favorite?: boolean | null;
+  user_note?: string | null;
 };
 
 type BlendRow = {
@@ -90,6 +91,7 @@ export function mapSessionRow(row: SessionRow): WorkoutSessionRecord {
     preparationStatus: row.preparation_status,
     selectedMealBlendId: row.selected_meal_blend_id,
     isFavorite: Boolean(row.is_favorite),
+    userNote: row.user_note ?? null,
   };
 }
 

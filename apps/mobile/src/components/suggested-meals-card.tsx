@@ -5,15 +5,22 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { GoalKey } from "@featness/shared";
 
 import type { DrinkBlendRecord } from "../lib/featness-data";
+import { MacroProgressBar } from "./macro-progress-bar";
 import { mobileShadow, theme } from "../theme";
 
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+  matchPercent: number;
   fitLabel: "ideal" | "solide" | "leger";
   fitReason: string;
   fitChips: string[];
   isRecommended: boolean;
+  needs: {
+    carbsTargetG: number;
+    proteinTargetG: number;
+    fatTargetG: number;
+  };
 };
 
 type SuggestedMealsCardProps = {
@@ -256,6 +263,7 @@ export function SuggestedMealsCard({
         <View style={styles.primaryTags}>
           <RecommendationPill recommended={selectedMeal.isRecommended} />
           <FitPill fitLabel={selectedMeal.fitLabel} />
+          <Tag label={`${selectedMeal.matchPercent}% adapte`} highlighted />
           <Tag label={GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal} />
           <Tag label={getEffortLabel(selectedMeal.effortCategory)} />
           <Tag label={`${selectedMeal.proteinG} g prot`} />
@@ -280,6 +288,27 @@ export function SuggestedMealsCard({
           <Metric label="Calories" value={`${selectedMeal.calories} kcal`} />
           <Metric label="Glucides" value={`${selectedMeal.carbsG} g`} />
           <Metric label="Lipides" value={`${selectedMeal.fatG} g`} />
+        </View>
+
+        <View style={styles.macroPanel}>
+          <MacroProgressBar
+            label="Proteines"
+            value={selectedMeal.proteinG}
+            target={selectedMeal.needs.proteinTargetG}
+            color={theme.colors.protein}
+          />
+          <MacroProgressBar
+            label="Glucides"
+            value={selectedMeal.carbsG}
+            target={selectedMeal.needs.carbsTargetG}
+            color={theme.colors.carbs}
+          />
+          <MacroProgressBar
+            label="Lipides"
+            value={selectedMeal.fatG}
+            target={selectedMeal.needs.fatTargetG}
+            color={theme.colors.fat}
+          />
         </View>
 
         <View style={styles.inlineActions}>
@@ -519,9 +548,12 @@ function MealListItem({
           <Text style={styles.listFooterText}>
             {getEffortLabel(meal.effortCategory)} · {meal.calories} kcal · {getPreparationEta(meal.preparationType)}
           </Text>
-          <Text style={[styles.selectText, isSelected ? styles.selectTextActive : null]}>
-            {isSelected ? "Selectionne" : "Choisir"}
-          </Text>
+          <View style={styles.listFooterRight}>
+            <Text style={styles.matchPercent}>{meal.matchPercent}% adapte</Text>
+            <Text style={[styles.selectText, isSelected ? styles.selectTextActive : null]}>
+              {isSelected ? "Selectionne" : "Choisir"}
+            </Text>
+          </View>
         </View>
       </View>
     </Pressable>
@@ -854,6 +886,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
   },
+  macroPanel: {
+    gap: 10,
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   metric: {
     flex: 1,
     borderRadius: 16,
@@ -1090,11 +1130,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  listFooterRight: {
+    alignItems: "flex-end",
+    gap: 4,
+  },
   listFooterText: {
     color: theme.colors.textSoft,
     fontSize: 12,
     lineHeight: 18,
     flex: 1,
+  },
+  matchPercent: {
+    color: theme.colors.mint,
+    fontSize: 12,
+    fontWeight: "700",
   },
   selectText: {
     color: theme.colors.text,

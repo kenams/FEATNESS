@@ -70,6 +70,7 @@ function createDemoPayload(workout: UserWorkoutInput): KioskScanPayload {
     preparationStatus: "scanned",
     selectedMealBlendId: null,
     isFavorite: false,
+    userNote: null,
   };
 
   return {

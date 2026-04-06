@@ -5,6 +5,7 @@ export const theme = {
     background: "#07110f",
     backgroundSoft: "#0d1b18",
     surface: FEATNESS_COLORS.surface,
+    surfaceLight: FEATNESS_COLORS.surfaceLight,
     surfaceStrong: "#152b26",
     surfaceMuted: "#0c1816",
     border: "rgba(216, 226, 220, 0.08)",

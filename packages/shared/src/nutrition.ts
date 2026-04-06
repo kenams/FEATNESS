@@ -5,6 +5,7 @@ import type {
   GoalKey,
   NutritionRecommendation,
   PrimaryObjectiveKey,
+  WorkoutSessionRecord,
   SessionSuggestion,
   UserWorkoutInput,
 } from "./types";
@@ -29,13 +30,26 @@ export type WorkoutRecoveryInsight = {
   focusTags: string[];
 };
 
+export type WorkoutRecoveryNeeds = {
+  caloriesBurned: number;
+  hydrationMl: number;
+  carbsTargetG: number;
+  proteinTargetG: number;
+  fatTargetG: number;
+  effortCategory: EffortCategory;
+  focusTitle: string;
+  focusCopy: string;
+};
+
 export type RankedMeal<T extends MealCandidate> = T & {
   score: number;
+  matchPercent: number;
   rank: number;
   fitLabel: "ideal" | "solide" | "leger";
   fitReason: string;
   fitChips: string[];
   isRecommended: boolean;
+  needs: WorkoutRecoveryNeeds;
 };
 
 function roundToNearest(value: number, step: number): number {
@@ -212,18 +226,161 @@ function getMealReason(
   };
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+export function calculateHydrationNeeds(
+  caloriesBurned: number,
+  weightKg: number,
+): number {
+  return Math.round((caloriesBurned / 1000) * 750 + weightKg * 30);
+}
+
+export function getOptimalConsumptionWindow(
+  intensity: UserWorkoutInput["intensity"],
+  _sport: UserWorkoutInput["sport"],
+): string {
+  if (intensity === "intense") {
+    return "A consommer dans les 20 min (fenetre anabolique)";
+  }
+
+  if (intensity === "moderate") {
+    return "A consommer dans les 45 min";
+  }
+
+  return "A consommer dans l'heure";
+}
+
+export function buildWorkoutRecoveryNeeds(
+  input: UserWorkoutInput,
+  objective: PrimaryObjectiveKey | null = null,
+): WorkoutRecoveryNeeds {
+  const caloriesBurned = calculateCaloriesBurned(input);
+  const effortCategory = getWorkoutEffortCategory(input, caloriesBurned);
+  const hydrationMl = calculateHydrationNeeds(caloriesBurned, input.weightKg);
+  const carbsTargetG =
+    effortCategory === "light" ? 40 : effortCategory === "medium" ? 58 : 76;
+  const proteinTargetG =
+    effortCategory === "light" ? 24 : effortCategory === "medium" ? 32 : 38;
+  const fatTargetG =
+    objective === "lose_weight"
+      ? 18
+      : effortCategory === "intense"
+        ? 24
+        : effortCategory === "medium"
+          ? 20
+          : 16;
+
+  return {
+    caloriesBurned,
+    hydrationMl,
+    carbsTargetG,
+    proteinTargetG,
+    fatTargetG,
+    effortCategory,
+    focusTitle: getFocusTitle(input.goal, objective),
+    focusCopy: getFocusCopy(input.goal, objective, effortCategory),
+  };
+}
+
+function calculateMealMatchPercent(
+  meal: MealCandidate,
+  needs: WorkoutRecoveryNeeds,
+): number {
+  const safeCarbsTarget = Math.max(needs.carbsTargetG, 1);
+  const safeProteinTarget = Math.max(needs.proteinTargetG, 1);
+  const safeFatTarget = Math.max(needs.fatTargetG, 1);
+
+  const carbsDistance = (meal.carbsG - needs.carbsTargetG) / safeCarbsTarget;
+  const proteinDistance = (meal.proteinG - needs.proteinTargetG) / safeProteinTarget;
+  const fatDistance = (meal.fatG - needs.fatTargetG) / safeFatTarget;
+
+  const euclidianDistance = Math.sqrt(
+    carbsDistance * carbsDistance +
+      proteinDistance * proteinDistance +
+      fatDistance * fatDistance,
+  );
+
+  return Math.round(clamp(100 - euclidianDistance * 35, 0, 100));
+}
+
+export function getMealRecommendationReason<T extends MealCandidate>(
+  meal: T,
+  needs: WorkoutRecoveryNeeds,
+  session: UserWorkoutInput,
+  objective: PrimaryObjectiveKey | null,
+): string {
+  if (session.goal === "recovery" && meal.proteinG >= needs.proteinTargetG * 0.9) {
+    return `Recommande car ta seance demande +${Math.round(
+      needs.proteinTargetG,
+    )}g de proteines`;
+  }
+
+  if (
+    session.goal === "performance" &&
+    meal.carbsG >= needs.carbsTargetG * 0.9
+  ) {
+    return "Recommande pour recharger vite en glucides";
+  }
+
+  if (objective === "lose_weight" && meal.calories <= 560) {
+    return "Option legere adaptee a ton objectif seche";
+  }
+
+  if (session.goal === "hydration") {
+    return "Option legere adaptee a ta recuperation";
+  }
+
+  if (meal.effortCategory === needs.effortCategory) {
+    return `Bon choix pour un effort ${needs.effortCategory}`;
+  }
+
+  return "Bon equilibre post-effort pour ta seance";
+}
+
+export function calculateWeeklyRecoveryScore(
+  sessions: Array<Pick<WorkoutSessionRecord, "createdAt" | "workout" | "recommendation">>,
+): number {
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - 6);
+
+  const recentSessions = sessions.filter((session) => {
+    const sessionDate = new Date(session.createdAt);
+    return sessionDate >= weekStart;
+  });
+
+  let score = 100;
+  let veryHighCount = 0;
+
+  for (const session of recentSessions) {
+    const calories = session.recommendation.caloriesBurned;
+    const effort = getWorkoutEffortCategory(session.workout, calories);
+
+    if (effort === "light" || effort === "medium") {
+      score += 10;
+    } else {
+      score += 5;
+      veryHighCount += 1;
+    }
+  }
+
+  if (veryHighCount > 2) {
+    score -= 5;
+  }
+
+  return clamp(score, 0, 100);
+}
+
 export function rankMealsForWorkout<T extends MealCandidate>(
   meals: T[],
   input: UserWorkoutInput,
   objective: PrimaryObjectiveKey | null = null,
   recommendedBlend: string | null = null,
 ): RankedMeal<T>[] {
-  const caloriesBurned = calculateCaloriesBurned(input);
-  const effortCategory = getWorkoutEffortCategory(input, caloriesBurned);
-  const carbTarget =
-    effortCategory === "light" ? 40 : effortCategory === "medium" ? 58 : 76;
-  const proteinTarget =
-    effortCategory === "light" ? 24 : effortCategory === "medium" ? 32 : 38;
+  const needs = buildWorkoutRecoveryNeeds(input, objective);
 
   const ranked = meals
     .map((meal) => {
@@ -237,17 +394,17 @@ export function rankMealsForWorkout<T extends MealCandidate>(
         score += 5;
       }
 
-      if (meal.effortCategory === effortCategory) {
+      if (meal.effortCategory === needs.effortCategory) {
         score += 4;
       } else if (
-        (effortCategory === "medium" && meal.effortCategory !== "intense") ||
-        (effortCategory === "intense" && meal.effortCategory === "medium")
+        (needs.effortCategory === "medium" && meal.effortCategory !== "intense") ||
+        (needs.effortCategory === "intense" && meal.effortCategory === "medium")
       ) {
         score += 2;
       }
 
-      score += Math.max(0, 6 - Math.abs(meal.carbsG - carbTarget) / 8);
-      score += Math.max(0, 6 - Math.abs(meal.proteinG - proteinTarget) / 5);
+      score += Math.max(0, 6 - Math.abs(meal.carbsG - needs.carbsTargetG) / 8);
+      score += Math.max(0, 6 - Math.abs(meal.proteinG - needs.proteinTargetG) / 5);
 
       if (objective === "lose_weight") {
         if (meal.calories <= 580) score += 4;
@@ -271,13 +428,17 @@ export function rankMealsForWorkout<T extends MealCandidate>(
         score += 2;
       }
 
-      const { reason, chips } = getMealReason(meal, input, objective);
+      const matchPercent = calculateMealMatchPercent(meal, needs);
+      const { chips } = getMealReason(meal, input, objective);
+      const reason = getMealRecommendationReason(meal, needs, input, objective);
 
       return {
         ...meal,
         score: Number(score.toFixed(1)),
+        matchPercent,
         fitReason: reason,
         fitChips: chips,
+        needs,
       };
     })
     .sort((left, right) => {
@@ -293,14 +454,14 @@ export function rankMealsForWorkout<T extends MealCandidate>(
   return ranked.map((meal, index) => ({
     ...meal,
     rank: index + 1,
-    fitLabel:
-      meal.score >= topScore - 1.5
-        ? "ideal"
-        : meal.score >= topScore - 4
+      fitLabel:
+        meal.score >= topScore - 1.5
+          ? "ideal"
+          : meal.score >= topScore - 4
           ? "solide"
           : "leger",
-    isRecommended: index < 3,
-  }));
+      isRecommended: index < 3,
+    }));
 }
 
 export function calculateBmi(weightKg: number, heightCm: number): BmiInsight | null {
@@ -506,7 +667,7 @@ export function buildNutritionRecommendation(
 ): NutritionRecommendation {
   const caloriesBurned = calculateCaloriesBurned(input);
   const hydrationMl = roundToNearest(
-    Math.max(450, input.durationMin * 12 + caloriesBurned * 1.4),
+    Math.max(450, calculateHydrationNeeds(caloriesBurned, input.weightKg)),
     25,
   );
   const carbsG = Number(

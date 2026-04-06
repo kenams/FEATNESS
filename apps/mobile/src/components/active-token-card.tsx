@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
 import { type DispenseTokenRecord, type WorkoutSessionRecord } from "@featness/shared";
@@ -42,6 +42,7 @@ export function ActiveTokenCard({
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
   const [now, setNow] = useState(Date.now());
+  const [showFullscreenQr, setShowFullscreenQr] = useState(false);
   const nextStepCopy = token
     ? "Presente ce QR directement a la borne FEATNESS pour recuperer ton plat."
     : canGenerate
@@ -147,6 +148,9 @@ export function ActiveTokenCard({
               <QRCode value={token.id} size={220} />
             </View>
           </View>
+          <Pressable style={styles.secondaryButton} onPress={() => setShowFullscreenQr(true)}>
+            <Text style={styles.secondaryButtonText}>Agrandir le QR</Text>
+          </Pressable>
           <View style={styles.statusRow}>
             <View style={[styles.statusChip, styles.statusChipActive]}>
               <Text style={styles.statusChipText}>Token {token.status}</Text>
@@ -208,6 +212,29 @@ export function ActiveTokenCard({
           </Text>
         </>
       )}
+
+      <Modal
+        visible={showFullscreenQr}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowFullscreenQr(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>QR FEATNESS</Text>
+              <Pressable onPress={() => setShowFullscreenQr(false)} style={styles.modalClose}>
+                <Text style={styles.modalCloseText}>Fermer</Text>
+              </Pressable>
+            </View>
+            {token ? (
+              <View style={styles.modalQrWrap}>
+                <QRCode value={token.id} size={280} />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -393,5 +420,49 @@ const styles = StyleSheet.create({
   emptyText: {
     color: theme.colors.textMuted,
     lineHeight: 20,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    borderRadius: 28,
+    backgroundColor: theme.colors.surface,
+    padding: 20,
+    gap: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  modalTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  modalClose: {
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modalCloseText: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  modalQrWrap: {
+    alignSelf: "center",
+    backgroundColor: theme.colors.white,
+    padding: 20,
+    borderRadius: 28,
   },
 });

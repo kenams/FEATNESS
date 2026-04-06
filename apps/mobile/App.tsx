@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import type { Session } from "@supabase/supabase-js";
 
 import {
   buildNutritionRecommendation,
+  calculateHydrationNeeds,
   buildWorkoutRecoveryInsight,
   buildSessionSuggestions,
+  calculateWeeklyRecoveryScore,
   calculateBmi,
+  getOptimalConsumptionWindow,
   isExpired,
   rankMealsForWorkout,
   type BmiInsight,
@@ -30,7 +34,9 @@ import { SessionSuggestionsCard } from "./src/components/session-suggestions-car
 import { SuggestedMealsCard } from "./src/components/suggested-meals-card";
 import { Badge } from "./src/components/ui/Badge";
 import { Card } from "./src/components/ui/Card";
+import { Skeleton } from "./src/components/ui/Skeleton";
 import { StatCard } from "./src/components/ui/StatCard";
+import { ToastProvider, useToast } from "./src/components/ui/Toast";
 import {
   clearSelectedMealChoice,
   cancelActiveTokens,
@@ -43,12 +49,14 @@ import {
   saveProfile,
   saveSelectedMealChoice,
   saveUserPreferences,
+  saveWorkoutSessionNote,
   setWorkoutSessionFavorite,
   type DrinkBlendRecord,
 } from "./src/lib/featness-data";
 import { registerForPushNotificationsAsync } from "./src/lib/notifications";
 import { getMobileSupabaseClient, isMobileSupabaseConfigured } from "./src/lib/supabase";
 import { mobileShadow, theme } from "./src/theme";
+import { MacroProgressBar } from "./src/components/macro-progress-bar";
 
 const TEST_USER_EMAIL = "featness.user.demo@mailinator.com";
 const TEST_USER_PASSWORD = "test123456";
@@ -56,10 +64,16 @@ const TEST_USER_PASSWORD = "test123456";
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+  matchPercent: number;
   fitLabel: "ideal" | "solide" | "leger";
   fitReason: string;
   fitChips: string[];
   isRecommended: boolean;
+  needs: {
+    carbsTargetG: number;
+    proteinTargetG: number;
+    fatTargetG: number;
+  };
 };
 
 type JourneyStep = {
@@ -68,7 +82,7 @@ type JourneyStep = {
   status: "done" | "current" | "upcoming";
 };
 
-type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile";
+type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile" | "history";
 
 type ScreenMeta = {
   eyebrow: string;
@@ -131,6 +145,16 @@ const SCREEN_META: Record<ScreenKey, ScreenMeta> = {
     glow: "rgba(179,191,210,0.18)",
     accent: "#c0ccda",
   },
+  history: {
+    eyebrow: "Historique",
+    title: "Ta progression de la semaine",
+    description:
+      "Retrouve tes seances, calories et repas FEATNESS sans perdre la vue d'ensemble.",
+    background: "#0a1116",
+    panel: "#14202a",
+    glow: "rgba(148,206,255,0.16)",
+    accent: "#94ceff",
+  },
 };
 
 const TAB_ITEMS: Array<{
@@ -138,10 +162,9 @@ const TAB_ITEMS: Array<{
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }> = [
-  { key: "home", label: "Home", icon: "view-dashboard-outline" },
-  { key: "sessions", label: "Effort", icon: "run-fast" },
-  { key: "meals", label: "Plat", icon: "silverware-fork-knife" },
-  { key: "qr", label: "Recap", icon: "clipboard-text-outline" },
+  { key: "home", label: "Accueil", icon: "home-outline" },
+  { key: "sessions", label: "Seance", icon: "lightning-bolt-outline" },
+  { key: "history", label: "Historique", icon: "format-list-bulleted-square" },
   { key: "profile", label: "Moi", icon: "account-circle-outline" },
 ];
 
@@ -203,10 +226,16 @@ function buildMenuMeals(meals: DrinkBlendRecord[]): SuggestedMeal[] {
       ...meal,
       rank: index + 1,
       score: 0,
+      matchPercent: 0,
       fitLabel: "leger" as const,
       fitReason: "Disponible a la borne FEATNESS.",
       fitChips: [],
       isRecommended: false,
+      needs: {
+        carbsTargetG: 1,
+        proteinTargetG: 1,
+        fatTargetG: 1,
+      },
     }));
 }
 
@@ -332,7 +361,8 @@ function formatPrimaryObjectiveLabel(value: PrimaryObjectiveKey): string {
   }
 }
 
-export default function App() {
+function AppShell() {
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [age, setAge] = useState("");
@@ -349,11 +379,16 @@ export default function App() {
   const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isRuntimeLoading, setIsRuntimeLoading] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
   const [activeTokenNow, setActiveTokenNow] = useState(Date.now());
+  const [selectedHistoryDay, setSelectedHistoryDay] = useState<string | null>(null);
+  const [detailSession, setDetailSession] = useState<WorkoutSessionRecord | null>(null);
+  const [detailNote, setDetailNote] = useState("");
   const scrollRef = useRef<ScrollView | null>(null);
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const screenTranslateY = useRef(new Animated.Value(0)).current;
+  const successScale = useRef(new Animated.Value(0.7)).current;
 
   const supabaseEnabled = isMobileSupabaseConfigured();
   const supabaseClient = useMemo(() => getMobileSupabaseClient(), []);
@@ -425,12 +460,12 @@ export default function App() {
   }, [activeSession, sessionSuggestions]);
   const selectedMeal = useMemo(
     () =>
-      availableMeals.find((meal) => meal.id === selectedMealId) ??
+      menuMeals.find((meal) => meal.id === selectedMealId) ??
       suggestedMeals[0] ??
       objectiveMeals[0] ??
       menuMeals[0] ??
       null,
-    [availableMeals, menuMeals, objectiveMeals, selectedMealId, suggestedMeals],
+    [menuMeals, objectiveMeals, selectedMealId, suggestedMeals],
   );
   const feedbackTone = getFeedbackTone(feedbackMessage);
   const recommendedScreen = useMemo(
@@ -572,6 +607,86 @@ export default function App() {
     (activeSuggestionKey
       ? sessionSuggestions.find((suggestion) => suggestion.key === activeSuggestionKey) ?? null
       : null) ?? null;
+  const greetingLabel = useMemo(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    const firstName =
+      profile?.fullName?.trim().split(/\s+/)[0] ??
+      session?.user?.email?.split("@")[0] ??
+      "FEATNESS";
+
+    const lastSessionAt = latestSession ? new Date(latestSession.createdAt).getTime() : null;
+    const wasRecentSession =
+      lastSessionAt != null && Date.now() - lastSessionAt <= 2 * 60 * 60 * 1000;
+
+    if (wasRecentSession) {
+      return `Bonne recuperation ${firstName}`;
+    }
+
+    if (hour >= 18) {
+      return `Bonsoir ${firstName}`;
+    }
+
+    return `Bonjour ${firstName}`;
+  }, [latestSession, profile?.fullName, session?.user?.email]);
+  const weeklyWindowStart = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - 6);
+    return date;
+  }, []);
+  const weekSessions = useMemo(
+    () =>
+      history.filter((sessionItem) => new Date(sessionItem.createdAt) >= weeklyWindowStart),
+    [history, weeklyWindowStart],
+  );
+  const sessionsThisWeek = weekSessions.length;
+  const caloriesThisWeek = weekSessions.reduce(
+    (total, sessionItem) => total + sessionItem.recommendation.caloriesBurned,
+    0,
+  );
+  const featnessMealsThisWeek = weekSessions.filter((sessionItem) => sessionItem.selectedMealBlendId).length;
+  const streakDays = useMemo(() => {
+    const sessionDays = new Set(
+      history.map((sessionItem) => new Date(sessionItem.createdAt).toISOString().slice(0, 10)),
+    );
+    let streak = 0;
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+
+    while (sessionDays.has(cursor.toISOString().slice(0, 10))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
+  }, [history]);
+  const weeklyRecoveryScore = useMemo(() => calculateWeeklyRecoveryScore(history), [history]);
+  const weeklyDays = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(weeklyWindowStart);
+        date.setDate(weeklyWindowStart.getDate() + index);
+        const key = date.toISOString().slice(0, 10);
+        const count = history.filter(
+          (sessionItem) => sessionItem.createdAt.slice(0, 10) === key,
+        ).length;
+
+        return {
+          key,
+          label: new Intl.DateTimeFormat("fr-FR", { weekday: "short" }).format(date),
+          count,
+        };
+      }),
+    [history, weeklyWindowStart],
+  );
+  const filteredHistory = useMemo(
+    () =>
+      selectedHistoryDay
+        ? history.filter((sessionItem) => sessionItem.createdAt.slice(0, 10) === selectedHistoryDay)
+        : history,
+    [history, selectedHistoryDay],
+  );
 
   const screenMeta = SCREEN_META[currentScreen];
   const isCompactScreen = currentScreen !== "home";
@@ -584,6 +699,21 @@ export default function App() {
   const selectedMealIsConfirmed = Boolean(
     selectedMeal && selectedMeal.id === confirmedMealId,
   );
+
+  useEffect(() => {
+    if (!feedbackMessage) {
+      return;
+    }
+
+    showToast(
+      feedbackMessage,
+      feedbackTone === "success"
+        ? "success"
+        : feedbackTone === "warning"
+          ? "error"
+          : "info",
+    );
+  }, [feedbackMessage, feedbackTone, showToast]);
 
   function scrollToTop(animated = true) {
     scrollRef.current?.scrollTo({ y: 0, animated });
@@ -609,6 +739,20 @@ export default function App() {
       }),
     ]).start();
   }, [currentScreen, screenOpacity, screenTranslateY]);
+
+  useEffect(() => {
+    if (currentScreen !== "qr") {
+      successScale.setValue(0.7);
+      return;
+    }
+
+    Animated.spring(successScale, {
+      toValue: 1,
+      friction: 7,
+      tension: 90,
+      useNativeDriver: true,
+    }).start();
+  }, [currentScreen, successScale]);
 
   useEffect(() => {
     if (!activeToken) {
@@ -657,6 +801,7 @@ export default function App() {
       setActiveSession(null);
       setAvailableMeals([]);
       setSelectedMealId(null);
+      setIsRuntimeLoading(false);
       setCurrentScreen("home");
       scrollToTop(false);
       return;
@@ -668,6 +813,7 @@ export default function App() {
 
     async function loadRuntimeData() {
       try {
+        setIsRuntimeLoading(true);
         const [nextProfile, nextHistory, nextToken, nextMeals] = await Promise.all([
           fetchProfile(mobileClient, authenticatedUser),
           fetchWorkoutHistory(mobileClient, authenticatedUser.id),
@@ -699,6 +845,10 @@ export default function App() {
           setFeedbackMessage(
             error instanceof Error ? error.message : "Chargement FEATNESS impossible.",
           );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRuntimeLoading(false);
         }
       }
     }
@@ -849,6 +999,8 @@ export default function App() {
       case "home":
         return true;
       case "profile":
+        return Boolean(session?.user);
+      case "history":
         return Boolean(session?.user);
       case "sessions":
         return Boolean(session?.user && hasCompletedOnboarding);
@@ -1088,10 +1240,12 @@ export default function App() {
       );
       setCurrentScreen("meals");
       scrollToTop();
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de lancer cette seance.",
       );
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsBusy(false);
     }
@@ -1100,6 +1254,7 @@ export default function App() {
   function handleSelectMeal(mealId: string) {
     const meal = availableMeals.find((item) => item.id === mealId) ?? null;
     setSelectedMealId(mealId);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (meal) {
       setFeedbackMessage(`${meal.name} selectionne. Verifie en haut puis valide ton recap.`);
@@ -1173,10 +1328,12 @@ export default function App() {
           ? "Seance ajoutee aux favoris."
           : "Seance retiree des favoris.",
       );
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (error) {
       setFeedbackMessage(
         formatRuntimeError(error, "Impossible de mettre a jour cette seance favorite."),
       );
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsBusy(false);
     }
@@ -1205,10 +1362,12 @@ export default function App() {
           ? "Plat retire des favoris."
           : `${selectedMeal.name} ajoute aux favoris FEATNESS.`,
       );
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de mettre a jour les favoris.",
       );
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }
 
@@ -1246,10 +1405,12 @@ export default function App() {
       setFeedbackMessage(
         `${targetMeal.name} retenu. Verifie le recap puis genere le QR pour la borne.`,
       );
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible d'enregistrer le choix du repas.",
       );
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsBusy(false);
     }
@@ -1274,8 +1435,10 @@ export default function App() {
       setCurrentScreen("qr");
       scrollToTop();
       setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant le presenter a la borne.");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       setFeedbackMessage(formatRuntimeError(error, "Impossible de generer le QR."));
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsBusy(false);
     }
@@ -1321,27 +1484,78 @@ export default function App() {
     openScreen("sessions");
   }
 
+  function openHistoryDetail(sessionItem: WorkoutSessionRecord) {
+    setDetailSession(sessionItem);
+    setDetailNote(sessionItem.userNote ?? "");
+  }
+
+  async function handleSaveSessionNote() {
+    if (!detailSession || !supabaseClient || !session?.user) {
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+      const updatedSession = await saveWorkoutSessionNote(
+        supabaseClient,
+        session.user.id,
+        detailSession.id,
+        detailNote,
+      );
+      setHistory((previousHistory) =>
+        previousHistory.map((candidate) =>
+          candidate.id === updatedSession.id ? updatedSession : candidate,
+        ),
+      );
+      setActiveSession((previousSession) =>
+        previousSession?.id === updatedSession.id ? updatedSession : previousSession,
+      );
+      setDetailSession(updatedSession);
+      setFeedbackMessage("Note de seance enregistree.");
+    } catch (error) {
+      setFeedbackMessage(
+        formatRuntimeError(error, "Impossible d'enregistrer la note."),
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   const renderHomeScreen = () => (
     <>
       <AnimatedSection delay={0}>
-        <View style={styles.heroStats}>
-          <StatCard label="Etat" value={session?.user ? "Connecte" : "Invite"} color={theme.colors.primary} />
-          <StatCard label="Seances" value={history.length} />
-          <StatCard label="Favoris" value={profile?.favoriteMealIds.length ?? 0} />
-        </View>
+        <Card variant="highlighted" style={styles.greetingCard}>
+          <Badge label="Accueil" variant="primary" size="sm" />
+          <Text style={styles.greetingTitle}>{greetingLabel}</Text>
+          <Text style={styles.greetingCopy}>
+            {session?.user
+              ? "Retrouve ton rythme FEATNESS : stats rapides, QR actif et raccourcis de reprise."
+              : "Connecte-toi pour retrouver tes seances, tes calories et ton QR actif."}
+          </Text>
+        </Card>
       </AnimatedSection>
 
       <AnimatedSection delay={70}>
-        <Card variant="highlighted" style={styles.nextActionCard}>
-          <Badge label="Statut rapide" variant="primary" size="sm" />
-          <Text style={styles.nextActionTitle}>La prochaine etape utile</Text>
-          <Text style={styles.nextActionDescription}>{quickStatus}</Text>
-          {session?.user ? (
-            <Pressable style={styles.primaryCta} onPress={openRecommendedStep}>
-              <Text style={styles.primaryCtaText}>Ouvrir l'etape recommandee</Text>
-            </Pressable>
-          ) : null}
-        </Card>
+        {isRuntimeLoading && session?.user ? (
+          <Card style={styles.nextActionCard}>
+            <Skeleton width="45%" height={16} />
+            <Skeleton width="88%" height={32} />
+            <Skeleton width="100%" height={18} />
+            <Skeleton width="70%" height={18} />
+          </Card>
+        ) : session?.user ? (
+          <View style={styles.heroStats}>
+            <StatCard label="Seances semaine" value={sessionsThisWeek} unit="seances" color={theme.colors.primary} />
+            <StatCard label="Calories semaine" value={caloriesThisWeek} unit="kcal" color={theme.colors.calories} />
+            <StatCard label="Streak" value={streakDays} unit="jours" color={theme.colors.gold} />
+          </View>
+        ) : (
+          <Card variant="highlighted" style={styles.nextActionCard}>
+            <Badge label="Statut rapide" variant="primary" size="sm" />
+            <Text style={styles.nextActionTitle}>La prochaine etape utile</Text>
+            <Text style={styles.nextActionDescription}>{quickStatus}</Text>
+          </Card>
+        )}
       </AnimatedSection>
 
       {!session?.user ? (
@@ -1363,17 +1577,52 @@ export default function App() {
         </AnimatedSection>
       ) : (
         <AnimatedSection delay={120}>
-          <View style={styles.summaryGrid}>
-            <StatCard label="Objectif" value={formatPrimaryObjectiveLabel(primaryObjective)} color={theme.colors.gold} />
-            <StatCard label="IMC" value={bmiInsight?.bmi ?? "--"} />
-            <StatCard label="Plat retenu" value={latestSelectedMealName ?? "Aucun"} />
-            <StatCard label="Consommations" value={mealSelectionsCount} />
-          </View>
+          <Card style={styles.nextActionCard}>
+            <Badge label="Recuperation" variant="neutral" size="sm" />
+            <Text style={styles.nextActionTitle}>Score recuperation · {weeklyRecoveryScore} / 100</Text>
+            <Text style={styles.nextActionDescription}>{quickStatus}</Text>
+            <View style={styles.summaryGrid}>
+              <StatCard label="Objectif" value={formatPrimaryObjectiveLabel(primaryObjective)} color={theme.colors.gold} />
+              <StatCard label="IMC" value={bmiInsight?.bmi ?? "--"} />
+              <StatCard label="Plat retenu" value={latestSelectedMealName ?? "Aucun"} />
+              <StatCard label="Repas semaine" value={featnessMealsThisWeek} />
+            </View>
+          </Card>
         </AnimatedSection>
       )}
 
+      {session?.user && activeToken ? (
+        <AnimatedSection delay={130}>
+          <Card variant="success" style={styles.activeTokenHomeCard}>
+            <Badge label="QR actif" variant="success" size="sm" />
+            <Text style={styles.activeTokenHomeTitle}>{activeTokenMealName ?? "Repas FEATNESS"}</Text>
+            <Text style={styles.activeTokenHomeCopy}>
+              Encore {activeTokenRemaining ?? "30 min"} avant expiration. Tu peux afficher le QR a tout moment.
+            </Text>
+            <Pressable style={styles.primaryCta} onPress={() => openScreen("qr")}>
+              <Text style={styles.primaryCtaText}>Afficher le QR</Text>
+            </Pressable>
+          </Card>
+        </AnimatedSection>
+      ) : null}
+
       {session?.user ? (
         <AnimatedSection delay={140}>
+          <Card style={styles.nextActionCard}>
+            <Badge label="Nouvelle seance" variant="success" size="sm" />
+            <Text style={styles.nextActionTitle}>Lancer une nouvelle seance</Text>
+            <Text style={styles.nextActionDescription}>
+              Passe directement aux seances suggerees et relance ton prochain effort en un tap.
+            </Text>
+            <Pressable style={styles.primaryCta} onPress={() => openScreen("sessions")}>
+              <Text style={styles.primaryCtaText}>Nouvelle seance</Text>
+            </Pressable>
+          </Card>
+        </AnimatedSection>
+      ) : null}
+
+      {session?.user ? (
+        <AnimatedSection delay={150}>
           <Card style={styles.homeRecapCard}>
             <Badge label="Resume recent" variant="neutral" size="sm" />
             <Text style={styles.homeRecapTitle}>Tes dernieres seances et plats</Text>
@@ -1457,6 +1706,96 @@ export default function App() {
           </Card>
         </AnimatedSection>
       ) : null}
+    </>
+  );
+
+  const renderHistoryScreen = () => (
+    <>
+      <AnimatedSection delay={0}>
+        <Card style={styles.historyWeekCard}>
+          <Badge label="Semaine" variant="neutral" size="sm" />
+          <Text style={styles.homeRecapTitle}>Vue hebdomadaire</Text>
+          <View style={styles.weekStrip}>
+            {weeklyDays.map((day) => {
+              const active = selectedHistoryDay === day.key;
+              const hasSession = day.count > 0;
+
+              return (
+                <Pressable
+                  key={day.key}
+                  style={[
+                    styles.weekDay,
+                    hasSession ? styles.weekDayActive : null,
+                    active ? styles.weekDaySelected : null,
+                  ]}
+                  onPress={() =>
+                    setSelectedHistoryDay((current) => (current === day.key ? null : day.key))
+                  }
+                >
+                  <Text style={[styles.weekDayLabel, active ? styles.weekDayLabelSelected : null]}>
+                    {day.label.slice(0, 2)}
+                  </Text>
+                  <View style={[styles.weekDot, hasSession ? styles.weekDotFilled : null]} />
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.heroStats}>
+            <StatCard label="Seances" value={sessionsThisWeek} />
+            <StatCard label="Calories" value={caloriesThisWeek} unit="kcal" color={theme.colors.calories} />
+            <StatCard label="Repas FEATNESS" value={featnessMealsThisWeek} />
+          </View>
+        </Card>
+      </AnimatedSection>
+
+      <AnimatedSection delay={60}>
+        <Card style={styles.homeRecapCard}>
+          <Badge
+            label={selectedHistoryDay ? "Jour filtre" : "Historique complet"}
+            variant={selectedHistoryDay ? "primary" : "neutral"}
+            size="sm"
+          />
+          <Text style={styles.homeRecapTitle}>Tes seances en detail</Text>
+          {isRuntimeLoading ? (
+            <View style={styles.recapList}>
+              <Skeleton width="100%" height={110} borderRadius={22} />
+              <Skeleton width="100%" height={110} borderRadius={22} />
+              <Skeleton width="100%" height={110} borderRadius={22} />
+            </View>
+          ) : filteredHistory.length > 0 ? (
+            <View style={styles.recapList}>
+              {filteredHistory.map((sessionItem) => (
+                <Pressable
+                  key={sessionItem.id}
+                  style={styles.historyDetailItem}
+                  onPress={() => openHistoryDetail(sessionItem)}
+                >
+                  <View style={styles.recapPrimary}>
+                    <Text style={styles.recapTitle}>
+                      {sessionItem.workout.sport} · {sessionItem.workout.goal}
+                    </Text>
+                    <Text style={styles.recapMeta}>
+                      {sessionItem.workout.durationMin} min · {sessionItem.recommendation.caloriesBurned} kcal
+                    </Text>
+                    <Text style={styles.recapMeta}>
+                      {sessionItem.selectedMealBlendId
+                        ? mealNamesById[sessionItem.selectedMealBlendId] ?? "Repas FEATNESS"
+                        : "Aucun plat retenu"}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={22}
+                    color={theme.colors.textMuted}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.homeRecapEmpty}>Aucune seance sur la periode choisie.</Text>
+          )}
+        </Card>
+      </AnimatedSection>
     </>
   );
 
@@ -1681,10 +2020,90 @@ export default function App() {
       );
     }
 
+    const workout = activeSession?.workout ?? null;
+    const summaryCalories = activeSession?.recommendation.caloriesBurned ?? 0;
+    const hydrationTarget = workout
+      ? calculateHydrationNeeds(summaryCalories, workout.weightKg)
+      : 0;
+    const optimalWindow = workout
+      ? getOptimalConsumptionWindow(workout.intensity, workout.sport)
+      : "A consommer dans l'heure";
+    const equivalenceLabel = workout
+      ? ["running", "cycling", "swimming", "rowing"].includes(workout.sport)
+        ? `${(summaryCalories / 70).toFixed(1)} km de course equivalentes`
+        : `${Math.round(summaryCalories / 0.15)} etages montes equivalentes`
+      : null;
+
     return (
       <>
+        <AnimatedSection delay={0}>
+          <Card variant="success" style={styles.summarySuccessCard}>
+            <Animated.View style={[styles.summarySuccessIconWrap, { transform: [{ scale: successScale }] }]}>
+              <MaterialCommunityIcons name="check-bold" size={26} color={theme.colors.ink} />
+            </Animated.View>
+            <Text style={styles.summarySuccessTitle}>Seance enregistree !</Text>
+            <Text style={styles.summarySuccessCopy}>Voici ton recap FEATNESS avant retrait.</Text>
+          </Card>
+        </AnimatedSection>
+
+        {activeSession ? (
+          <AnimatedSection delay={30}>
+            <Card style={styles.summarySessionCard}>
+              <Badge label="Seance" variant="neutral" size="sm" />
+              <Text style={styles.summarySessionTitle}>
+                {activeSuggestion?.title ?? `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`}
+              </Text>
+              <View style={styles.summaryBannerRow}>
+                <View style={styles.summaryBannerItem}>
+                  <Text style={styles.summaryBannerLabel}>Calories</Text>
+                  <Text style={styles.summaryBannerValue}>{summaryCalories} kcal</Text>
+                </View>
+                <View style={styles.summaryBannerItem}>
+                  <Text style={styles.summaryBannerLabel}>Intensite</Text>
+                  <Text style={styles.summaryBannerValue}>{activeSession.workout.intensity}</Text>
+                </View>
+              </View>
+              {equivalenceLabel ? (
+                <Text style={styles.summaryHintText}>Equivalent a {equivalenceLabel}</Text>
+              ) : null}
+            </Card>
+          </AnimatedSection>
+        ) : null}
+
+        {selectedMeal ? (
+          <AnimatedSection delay={50}>
+            <Card style={styles.summaryMealCard}>
+              <Badge label="Repas choisi" variant="warning" size="sm" />
+              <Text style={styles.summarySessionTitle}>{selectedMeal.name}</Text>
+              <Text style={styles.summaryHintText}>
+                Couvre environ {selectedMeal.matchPercent}% de tes besoins post-effort.
+              </Text>
+              <View style={styles.summaryMacroList}>
+                <MacroProgressBar
+                  label="Proteines"
+                  value={selectedMeal.proteinG}
+                  target={selectedMeal.needs.proteinTargetG}
+                  color={theme.colors.protein}
+                />
+                <MacroProgressBar
+                  label="Glucides"
+                  value={selectedMeal.carbsG}
+                  target={selectedMeal.needs.carbsTargetG}
+                  color={theme.colors.carbs}
+                />
+                <MacroProgressBar
+                  label="Lipides"
+                  value={selectedMeal.fatG}
+                  target={selectedMeal.needs.fatTargetG}
+                  color={theme.colors.fat}
+                />
+              </View>
+            </Card>
+          </AnimatedSection>
+        ) : null}
+
         {!activeToken ? (
-          <AnimatedSection delay={0}>
+          <AnimatedSection delay={70}>
             <View style={styles.qrRecapCard}>
               <Text style={styles.sectionEyebrow}>Validation finale</Text>
               <Text style={styles.qrRecapTitle}>Tout est pret pour generer ton QR</Text>
@@ -1735,7 +2154,7 @@ export default function App() {
           </AnimatedSection>
         ) : null}
         {activeToken ? (
-        <AnimatedSection delay={0}>
+        <AnimatedSection delay={90}>
           <ActiveTokenCard
             token={activeToken}
             session={activeSession}
@@ -1748,6 +2167,17 @@ export default function App() {
           />
         </AnimatedSection>
         ) : null}
+
+        <AnimatedSection delay={110}>
+          <Card style={styles.summaryCoachCard}>
+            <Badge label="Coaching" variant="primary" size="sm" />
+            <Text style={styles.summarySessionTitle}>Apres ta seance</Text>
+            <Text style={styles.summaryHintText}>
+              Buvez environ {hydrationTarget} ml dans l&apos;heure qui suit.
+            </Text>
+            <Text style={styles.summaryHintText}>{optimalWindow}</Text>
+          </Card>
+        </AnimatedSection>
       </>
     );
   };
@@ -1793,6 +2223,8 @@ export default function App() {
         return renderMealsScreen();
       case "qr":
         return renderQrScreen();
+      case "history":
+        return renderHistoryScreen();
       case "profile":
         return renderProfileScreen();
       case "home":
@@ -2011,6 +2443,96 @@ export default function App() {
             </View>
           </View>
         ) : null}
+
+        <Modal
+          visible={Boolean(detailSession)}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setDetailSession(null)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalSheet}>
+              {detailSession ? (
+                <>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeaderCopy}>
+                      <Text style={styles.modalEyebrow}>Detail seance</Text>
+                      <Text style={styles.modalTitle}>
+                        {detailSession.workout.sport} · {detailSession.workout.goal}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.modalClose}
+                      onPress={() => setDetailSession(null)}
+                    >
+                      <MaterialCommunityIcons name="close" size={20} color={theme.colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <View style={styles.summaryGrid}>
+                    <StatCard label="Duree" value={detailSession.workout.durationMin} unit="min" />
+                    <StatCard label="Calories" value={detailSession.recommendation.caloriesBurned} unit="kcal" color={theme.colors.calories} />
+                    <StatCard
+                      label="Plat"
+                      value={
+                        detailSession.selectedMealBlendId
+                          ? mealNamesById[detailSession.selectedMealBlendId] ?? "Repas FEATNESS"
+                          : "Aucun"
+                      }
+                    />
+                  </View>
+
+                  {detailSession.selectedMealBlendId ? (
+                    <View style={styles.detailMealCard}>
+                      <Text style={styles.detailMealLabel}>Repas choisi</Text>
+                      <Text style={styles.detailMealValue}>
+                        {mealNamesById[detailSession.selectedMealBlendId] ?? "Repas FEATNESS"}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <TextInput
+                    value={detailNote}
+                    onChangeText={setDetailNote}
+                    placeholder="Ajouter une note personnelle"
+                    placeholderTextColor={theme.colors.textMuted}
+                    multiline
+                    style={styles.detailNoteInput}
+                  />
+
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      style={[styles.secondaryCta, isBusy && styles.buttonDisabled]}
+                      onPress={() => setDetailSession(null)}
+                      disabled={isBusy}
+                    >
+                      <Text style={styles.secondaryCtaText}>Fermer</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.secondaryCta, isBusy && styles.buttonDisabled]}
+                      onPress={() => {
+                        void handleReplaySession(detailSession, "Seance historique");
+                        setDetailSession(null);
+                      }}
+                      disabled={isBusy}
+                    >
+                      <Text style={styles.secondaryCtaText}>Rejouer cette seance</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.primaryCta, isBusy && styles.buttonDisabled]}
+                      onPress={() => void handleSaveSessionNote()}
+                      disabled={isBusy}
+                    >
+                      <Text style={styles.primaryCtaText}>
+                        {isBusy ? "Sauvegarde..." : "Enregistrer la note"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -2220,6 +2742,18 @@ const styles = StyleSheet.create({
   summaryGrid: {
     gap: 12,
   },
+  greetingCard: {
+    gap: 10,
+  },
+  greetingTitle: {
+    color: theme.colors.text,
+    fontSize: 28,
+    fontWeight: "700",
+  },
+  greetingCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 21,
+  },
   premiumStrip: {
     gap: 12,
   },
@@ -2330,6 +2864,18 @@ const styles = StyleSheet.create({
     color: theme.colors.ink,
     fontSize: 15,
     fontWeight: "700",
+  },
+  activeTokenHomeCard: {
+    gap: 10,
+  },
+  activeTokenHomeTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  activeTokenHomeCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
   },
   quickRestartCard: {
     gap: 10,
@@ -2507,6 +3053,50 @@ const styles = StyleSheet.create({
     color: theme.colors.textSoft,
     lineHeight: 19,
   },
+  summarySuccessCard: {
+    alignItems: "center",
+    gap: 10,
+  },
+  summarySuccessIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.success,
+  },
+  summarySuccessTitle: {
+    color: theme.colors.text,
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  summarySuccessCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  summarySessionCard: {
+    gap: 10,
+  },
+  summaryMealCard: {
+    gap: 10,
+  },
+  summaryCoachCard: {
+    gap: 10,
+  },
+  summarySessionTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  summaryHintText: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+  },
+  summaryMacroList: {
+    gap: 10,
+  },
   buttonDisabled: {
     opacity: 0.6,
   },
@@ -2559,6 +3149,60 @@ const styles = StyleSheet.create({
   homeRecapEmpty: {
     color: theme.colors.textMuted,
     lineHeight: 20,
+  },
+  historyWeekCard: {
+    gap: 14,
+  },
+  weekStrip: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  weekDay: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  weekDayActive: {
+    borderColor: "rgba(16,185,129,0.3)",
+  },
+  weekDaySelected: {
+    backgroundColor: theme.colors.goldSoft,
+    borderColor: theme.colors.borderStrong,
+  },
+  weekDayLabel: {
+    color: theme.colors.textSoft,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  weekDayLabelSelected: {
+    color: theme.colors.text,
+  },
+  weekDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  weekDotFilled: {
+    backgroundColor: theme.colors.primary,
+  },
+  historyDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   tabBarWrap: {
     position: "absolute",
@@ -2626,6 +3270,84 @@ const styles = StyleSheet.create({
     color: theme.colors.ink,
     fontWeight: "700",
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.58)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.lg,
+    gap: 14,
+    minHeight: "62%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  modalHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  modalEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+  },
+  modalTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  modalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  detailMealCard: {
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 4,
+  },
+  detailMealLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  detailMealValue: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  detailNoteInput: {
+    minHeight: 112,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    color: theme.colors.text,
+    textAlignVertical: "top",
+  },
+  modalActions: {
+    gap: 10,
+  },
   tabButton: {
     flex: 1,
     minWidth: 0,
@@ -2655,3 +3377,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
 });
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
+  );
+}
