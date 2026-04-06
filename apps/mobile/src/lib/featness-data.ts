@@ -28,6 +28,16 @@ export type DrinkBlendRecord = {
   accent: string;
 };
 
+export type KioskRecord = {
+  id: string;
+  name: string;
+  locationCity: string | null;
+  isActive: boolean;
+  stockUnits: number;
+  stockAlertThreshold: number;
+  lastHeartbeatAt: string | null;
+};
+
 export type UserPreferencesPayload = {
   preferredSport: SportKey | null;
   preferredGoal: GoalKey | null;
@@ -155,6 +165,18 @@ function mapDrinkBlendRow(row: Record<string, unknown>): DrinkBlendRecord {
     fatG: presentation.fatG,
     preparationType: presentation.preparationType,
     accent: presentation.accent,
+  };
+}
+
+function mapKioskRow(row: Record<string, unknown>): KioskRecord {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? row.id),
+    locationCity: (row.location_city as string | null) ?? null,
+    isActive: Boolean(row.is_active),
+    stockUnits: Number(row.stock_units ?? 0),
+    stockAlertThreshold: Number(row.stock_alert_threshold ?? 0),
+    lastHeartbeatAt: (row.last_heartbeat_at as string | null) ?? null,
   };
 }
 
@@ -398,4 +420,19 @@ export async function fetchAvailableDrinkBlends(
   }
 
   return (data ?? []).map((row) => mapDrinkBlendRow(row));
+}
+
+export async function fetchAvailableKiosks(
+  client: SupabaseClient,
+): Promise<KioskRecord[]> {
+  const { data, error } = await client
+    .from("kiosks")
+    .select("id, name, location_city, is_active, stock_units, stock_alert_threshold, last_heartbeat_at")
+    .order("name");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => mapKioskRow(row));
 }
