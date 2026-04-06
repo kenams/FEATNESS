@@ -1351,9 +1351,9 @@ export default function App() {
               </Text>
             </View>
             <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Etat</Text>
+              <Text style={styles.summaryBannerLabel}>Action</Text>
               <Text style={styles.summaryBannerValue}>
-                {activeToken ? "QR actif" : "QR a generer"}
+                {activeToken ? "A montrer a la borne" : "Generation du QR"}
               </Text>
             </View>
           </View>
@@ -1362,6 +1362,7 @@ export default function App() {
           <ActiveTokenCard
             token={activeToken}
             session={activeSession}
+            mealName={latestSelectedMealName}
             canGenerate={hasSelectedMeal}
             onGenerate={() => void handleGenerateQr()}
             isBusy={isBusy}

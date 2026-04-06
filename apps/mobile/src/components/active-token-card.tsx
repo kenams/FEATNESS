@@ -1,27 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
-import { isExpired, type DispenseTokenRecord, type WorkoutSessionRecord } from "@featness/shared";
+import { type DispenseTokenRecord, type WorkoutSessionRecord } from "@featness/shared";
 
 import { mobileShadow, theme } from "../theme";
 
 type ActiveTokenCardProps = {
   token: DispenseTokenRecord | null;
   session: WorkoutSessionRecord | null;
+  mealName: string | null;
   canGenerate: boolean;
   onGenerate: () => void;
   isBusy: boolean;
 };
 
-function formatRemaining(token: DispenseTokenRecord): string {
-  if (isExpired(token.expiresAt)) {
+function formatRemaining(expiresAt: string, nowMs = Date.now()): string {
+  if (new Date(expiresAt).getTime() <= nowMs) {
     return "Expire";
   }
 
   const minutes = Math.max(
     0,
-    Math.ceil((new Date(token.expiresAt).getTime() - Date.now()) / 60_000),
+    Math.ceil((new Date(expiresAt).getTime() - nowMs) / 60_000),
   );
 
   return `${minutes} min restantes`;
@@ -30,16 +31,30 @@ function formatRemaining(token: DispenseTokenRecord): string {
 export function ActiveTokenCard({
   token,
   session,
+  mealName,
   canGenerate,
   onGenerate,
   isBusy,
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
+  const [now, setNow] = useState(Date.now());
   const nextStepCopy = token
-    ? "Ton QR est pret. Il sert uniquement a finaliser plus tard sur la borne, sans remettre ton choix repas en question."
+    ? "Presente ce QR directement a la borne FEATNESS pour recuperer ton plat."
     : canGenerate
-      ? "Ton plat est valide. Genere maintenant le QR en un clic seulement si tu veux poursuivre sur la borne."
-      : "Choisis d'abord ton plat. Le QR reste secondaire pour garder un parcours simple et rapide.";
+      ? "Ton plat est valide. Genere maintenant le QR pour le presenter a la borne."
+      : "Choisis d'abord ton plat pour debloquer le QR.";
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -72,6 +87,8 @@ export function ActiveTokenCard({
     };
   }, [pulse, token]);
 
+  const remainingLabel = token ? formatRemaining(token.expiresAt, now) : null;
+
   const pulseScale = pulse.interpolate({
     inputRange: [0, 1],
     outputRange: [0.92, 1.08],
@@ -85,34 +102,24 @@ export function ActiveTokenCard({
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Qr</Text>
-      <Text style={styles.cardTitle}>QR optionnel FEATNESS</Text>
+      <Text style={styles.cardTitle}>Presente ce QR a la borne</Text>
       <Text style={styles.helperText}>
-        Le QR reste valide 30 minutes. Il ne sert qu'apres validation du plat, pour une finalisation eventuelle sur borne.
+        Une seule action attendue ici : ouvrir le QR et le montrer a la borne FEATNESS.
       </Text>
       <View style={styles.callout}>
-        <Text style={styles.calloutEyebrow}>Etape suivante</Text>
+        <Text style={styles.calloutEyebrow}>Action</Text>
         <Text style={styles.calloutText}>{nextStepCopy}</Text>
       </View>
 
-      <Pressable
-        style={[
-          styles.primaryButton,
-          (isBusy || !canGenerate) && styles.buttonDisabled,
-        ]}
-        onPress={onGenerate}
-        disabled={isBusy || !canGenerate}
-      >
-        <Text style={styles.primaryButtonText}>
-          {isBusy
-            ? "Generation..."
-            : canGenerate
-              ? "Generer mon QR"
-              : "Choisis d'abord ton plat"}
-        </Text>
-      </Pressable>
-
       {token ? (
         <View style={styles.tokenBlock}>
+          <Text style={styles.tokenHeadline}>QR actif</Text>
+          {mealName ? (
+            <View style={styles.mealPill}>
+              <Text style={styles.mealPillLabel}>Plat</Text>
+              <Text style={styles.mealPillValue}>{mealName}</Text>
+            </View>
+          ) : null}
           <View style={styles.qrStage}>
             <Animated.View
               pointerEvents="none"
@@ -125,30 +132,53 @@ export function ActiveTokenCard({
               ]}
             />
             <View style={styles.qrWrap}>
-              <QRCode value={token.id} size={168} />
+              <QRCode value={token.id} size={220} />
             </View>
           </View>
           <View style={styles.statusRow}>
-            <View style={styles.statusChip}>
+            <View style={[styles.statusChip, styles.statusChipActive]}>
               <Text style={styles.statusChipText}>Token {token.status}</Text>
             </View>
             <View style={styles.statusChip}>
-              <Text style={styles.statusChipText}>{formatRemaining(token)}</Text>
+              <Text style={styles.statusChipText}>{remainingLabel ?? formatRemaining(token.expiresAt)}</Text>
             </View>
           </View>
-          <Text style={styles.tokenId}>{token.id}</Text>
+          <Text style={styles.scanInstruction}>Approche ton telephone du lecteur QR de la borne.</Text>
           {session ? (
             <Text style={styles.meta}>
               Seance : {session.workout.sport} / {session.preparationStatus}
             </Text>
           ) : null}
+          <Pressable style={styles.secondaryButton} onPress={onGenerate} disabled={isBusy}>
+            <Text style={styles.secondaryButtonText}>
+              {isBusy ? "Regeneration..." : "Regenerer le QR"}
+            </Text>
+          </Pressable>
         </View>
       ) : (
-        <Text style={styles.emptyText}>
-          {canGenerate
-            ? "Aucun QR actif. Ton plat est deja valide, genere le QR seulement si tu en as besoin."
-            : "Aucun QR actif. Valide d'abord ton plat, puis genere le QR seulement si tu en as besoin."}
-        </Text>
+        <>
+          <Pressable
+            style={[
+              styles.primaryButton,
+              (isBusy || !canGenerate) && styles.buttonDisabled,
+            ]}
+            onPress={onGenerate}
+            disabled={isBusy || !canGenerate}
+          >
+            <Text style={styles.primaryButtonText}>
+              {isBusy
+                ? "Generation..."
+                : canGenerate
+                  ? "Generer mon QR"
+                  : "Choisis d'abord ton plat"}
+            </Text>
+          </Pressable>
+          <Text style={styles.emptyText}>
+            {canGenerate
+              ? "Ton plat est valide. Genere le QR et montre-le a la borne."
+              : "Valide d'abord ton plat pour debloquer le QR."}
+          </Text>
+        </>
       )}
     </View>
   );
@@ -214,24 +244,49 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   tokenBlock: {
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: 22,
-    padding: 18,
+    backgroundColor: "#08110f",
+    borderRadius: 24,
+    padding: 20,
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "rgba(201,166,70,0.18)",
+  },
+  tokenHeadline: {
+    color: theme.colors.text,
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  mealPill: {
+    width: "100%",
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: theme.colors.border,
+    gap: 4,
+  },
+  mealPillLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  mealPillValue: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
   },
   qrStage: {
-    width: 216,
-    height: 216,
+    width: 286,
+    height: 286,
     alignItems: "center",
     justifyContent: "center",
   },
   qrPulse: {
     position: "absolute",
-    width: 212,
-    height: 212,
+    width: 278,
+    height: 278,
     borderRadius: 999,
     backgroundColor: theme.colors.goldSoft,
     borderWidth: 1,
@@ -239,8 +294,8 @@ const styles = StyleSheet.create({
   },
   qrWrap: {
     backgroundColor: theme.colors.white,
-    padding: 14,
-    borderRadius: 20,
+    padding: 18,
+    borderRadius: 24,
   },
   statusRow: {
     flexDirection: "row",
@@ -256,20 +311,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
+  statusChipActive: {
+    backgroundColor: theme.colors.gold,
+    borderColor: theme.colors.gold,
+  },
   statusChipText: {
-    color: theme.colors.text,
+    color: theme.colors.ink,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "capitalize",
   },
-  tokenId: {
+  scanInstruction: {
     color: theme.colors.text,
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: "700",
     textAlign: "center",
   },
   meta: {
     color: theme.colors.textMuted,
     fontSize: 13,
+  },
+  secondaryButton: {
+    width: "100%",
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  secondaryButtonText: {
+    color: theme.colors.text,
+    fontWeight: "700",
+    textAlign: "center",
   },
   emptyText: {
     color: theme.colors.textMuted,
