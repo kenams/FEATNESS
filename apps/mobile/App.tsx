@@ -23,7 +23,6 @@ import { ActiveTokenCard } from "./src/components/active-token-card";
 import { AnimatedSection } from "./src/components/animated-section";
 import { AuthCard } from "./src/components/auth-card";
 import { HistoryCard } from "./src/components/history-card";
-import { MealDetailCard } from "./src/components/meal-detail-card";
 import { ProfileCard } from "./src/components/profile-card";
 import { SessionSuggestionsCard } from "./src/components/session-suggestions-card";
 import { SuggestedMealsCard } from "./src/components/suggested-meals-card";
@@ -1312,19 +1311,11 @@ export default function App() {
             onQuickConfirmRecommended={() =>
               void handleConfirmMealChoice(selectedMealId ?? suggestedMeals[0]?.id ?? null)
             }
-            isBusy={isBusy}
-          />
-        </AnimatedSection>
-        <AnimatedSection delay={120}>
-          <MealDetailCard
-            meal={selectedMeal}
-            goal={activeSession.workout.goal}
+            onToggleFavorite={() => void handleToggleFavoriteMeal()}
             isFavorite={
               selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false
             }
             isConfirmed={Boolean(selectedMeal && selectedMeal.id === confirmedMealId)}
-            onToggleFavorite={() => void handleToggleFavoriteMeal()}
-            onConfirmChoice={() => void handleConfirmMealChoice()}
             isBusy={isBusy}
           />
         </AnimatedSection>

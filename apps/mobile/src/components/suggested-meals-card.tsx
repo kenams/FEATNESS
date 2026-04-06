@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { GoalKey } from "@featness/shared";
@@ -17,6 +18,9 @@ type SuggestedMealsCardProps = {
   favoriteMealIds: string[];
   onSelectMeal: (mealId: string) => void;
   onQuickConfirmRecommended: () => void;
+  onToggleFavorite: () => void;
+  isFavorite: boolean;
+  isConfirmed: boolean;
   isBusy: boolean;
 };
 
@@ -26,24 +30,27 @@ const GOAL_LABELS: Record<GoalKey, string> = {
   performance: "Performance",
 };
 
+const GOAL_COPY: Record<GoalKey, string> = {
+  hydration: "Hydrate vite avec un apport leger et utile apres l'effort.",
+  recovery: "Remonte plus vite avec des proteines et glucides clairs.",
+  performance: "Recharge l'energie avant une reprise ou une double seance.",
+};
+
 function formatCurrency(value: number): string {
   return `${value.toFixed(2)} EUR`;
 }
 
-function buildReason(rank: number, meal: SuggestedMeal, goal: GoalKey): string {
-  if (meal.rank === 1 && meal.targetGoal === goal) {
-    return "Le meilleur alignement entre ta seance et la borne FEATNESS.";
+function getPreparationEta(type: DrinkBlendRecord["preparationType"]): string {
+  switch (type) {
+    case "lyophilise":
+      return "90 sec";
+    case "auto_chauffant":
+      return "2 min";
+    case "assemblage_sec":
+      return "60 sec";
+    default:
+      return "Rapide";
   }
-
-  if (meal.targetGoal === goal) {
-    return "Cible le meme objectif que ta recommandation sportive.";
-  }
-
-  if (rank === 1) {
-    return "Option la plus proche disponible malgre un catalogue partiel.";
-  }
-
-  return "Alternative utile si tu veux varier tout en restant dans le bon flux.";
 }
 
 export function SuggestedMealsCard({
@@ -53,8 +60,13 @@ export function SuggestedMealsCard({
   favoriteMealIds,
   onSelectMeal,
   onQuickConfirmRecommended,
+  onToggleFavorite,
+  isFavorite,
+  isConfirmed,
   isBusy,
 }: SuggestedMealsCardProps) {
+  const [showDetails, setShowDetails] = useState(false);
+
   if (meals.length === 0) {
     return null;
   }
@@ -64,115 +76,157 @@ export function SuggestedMealsCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardEyebrow}>Catalogue</Text>
-      <Text style={styles.cardTitle}>Plats recommandes maintenant</Text>
+      <Text style={styles.cardEyebrow}>Plats</Text>
+      <Text style={styles.cardTitle}>Choix rapide FEATNESS</Text>
       <Text style={styles.helperText}>
-        FEATNESS affiche tout de suite les 3 options les plus coherentes. Le but est de
-        choisir ton plat ici, sans attendre la borne.
+        Ton choix en cours est affiche en haut. Les autres options restent disponibles juste en dessous.
       </Text>
-      <View style={styles.tipBox}>
-        <Text style={styles.tipEyebrow}>Conseil FEATNESS</Text>
-        <Text style={styles.tipCopy}>
-          Commence par l&apos;option 1. Ouvre ensuite le detail uniquement si tu veux comparer les macros ou le temps de preparation.
-        </Text>
-      </View>
 
-      <View style={styles.expressCard}>
-        <View style={styles.expressHeader}>
-          <View style={styles.expressCopy}>
-            <Text style={styles.expressEyebrow}>Choix retenu</Text>
-            <Text style={styles.expressTitle}>{selectedMeal.name}</Text>
-            <Text style={styles.expressDescription}>
-              Ce plat est sorti de la liste pour devenir ton choix en cours. Tu peux encore revenir sur une alternative plus bas.
+      <View style={styles.selectedCard}>
+        <View style={styles.selectedHeader}>
+          <View style={styles.selectedCopy}>
+            <Text style={styles.selectedEyebrow}>Choix retenu</Text>
+            <Text style={styles.selectedTitle}>{selectedMeal.name}</Text>
+            <Text style={styles.selectedDescription} numberOfLines={2}>
+              {selectedMeal.description}
             </Text>
           </View>
-          <View style={styles.expressPricePill}>
-            <Text style={styles.expressPriceText}>{formatCurrency(selectedMeal.priceEur)}</Text>
+          <View style={styles.pricePill}>
+            <Text style={styles.pricePillText}>{formatCurrency(selectedMeal.priceEur)}</Text>
           </View>
         </View>
 
-        <View style={styles.expressTags}>
-          <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>
-              {GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal}
-            </Text>
-          </View>
-          <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>{selectedMeal.proteinG} g prot</Text>
-          </View>
-          <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>{selectedMeal.calories} kcal</Text>
-          </View>
-          <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>
-              {selectedMeal.allergens.length > 0
-                ? `${selectedMeal.allergens.length} allergenes`
-                : "Sans allergene majeur"}
-            </Text>
-          </View>
+        <View style={styles.primaryTags}>
+          <Tag label={GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal} />
+          <Tag label={`${selectedMeal.proteinG} g prot`} />
+          <Tag label={`${selectedMeal.calories} kcal`} />
+          <Tag label={getPreparationEta(selectedMeal.preparationType)} />
         </View>
 
-        <Pressable
-          style={[styles.expressButton, isBusy && styles.buttonDisabled]}
-          onPress={onQuickConfirmRecommended}
-          disabled={isBusy}
-        >
-          <Text style={styles.expressButtonText}>
-            {isBusy ? "Validation..." : "Conserver ce plat et ouvrir le recap"}
+        <View style={styles.fastReason}>
+          <Text style={styles.fastReasonTitle}>Pourquoi ce choix</Text>
+          <Text style={styles.fastReasonCopy}>{GOAL_COPY[goal]}</Text>
+        </View>
+
+        <View style={styles.compactMetrics}>
+          <Metric label="Glucides" value={`${selectedMeal.carbsG} g`} />
+          <Metric label="Lipides" value={`${selectedMeal.fatG} g`} />
+          <Metric
+            label="Allergenes"
+            value={
+              selectedMeal.allergens.length > 0
+                ? `${selectedMeal.allergens.length} declares`
+                : "Aucun majeur"
+            }
+          />
+        </View>
+
+        <View style={styles.inlineActions}>
+          <Pressable style={styles.secondaryAction} onPress={onToggleFavorite}>
+            <Text style={styles.secondaryActionText}>
+              {isFavorite ? "Favori ajoute" : "Ajouter aux favoris"}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.primaryAction, isConfirmed && styles.primaryActionSuccess, isBusy && styles.buttonDisabled]}
+            onPress={onQuickConfirmRecommended}
+            disabled={isBusy}
+          >
+            <Text style={styles.primaryActionText}>
+              {isBusy ? "Validation..." : isConfirmed ? "Plat valide" : "Valider et aller au recap"}
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable style={styles.detailToggle} onPress={() => setShowDetails((value) => !value)}>
+          <Text style={styles.detailToggleText}>
+            {showDetails ? "Masquer ingredients" : "Voir ingredients et allergenes"}
           </Text>
         </Pressable>
-      </View>
 
-      <View style={styles.list}>
-        {visibleMeals.map((meal) => (
-          <Pressable
-            key={meal.id}
-            style={[
-              styles.mealCard,
-              meal.rank === 1 && styles.featuredMealCard,
-              selectedMealId === meal.id && styles.selectedMealCard,
-            ]}
-            onPress={() => onSelectMeal(meal.id)}
-          >
-            <View style={styles.header}>
-              <View style={styles.headerCopy}>
-                <Text style={styles.itemEyebrow}>
-                  {meal.rank === 1 ? "Choix recommande" : `Option ${meal.rank}`}
-                </Text>
-                <Text style={styles.mealName}>{meal.name}</Text>
-              </View>
-              <Text style={styles.price}>{formatCurrency(meal.priceEur)}</Text>
+        {showDetails ? (
+          <View style={styles.detailPanel}>
+            <Text style={styles.panelLabel}>Ingredients</Text>
+            <View style={styles.chipList}>
+              {selectedMeal.ingredients.map((ingredient) => (
+                <View key={ingredient} style={styles.chip}>
+                  <Text style={styles.chipText}>{ingredient}</Text>
+                </View>
+              ))}
             </View>
 
-            <Text style={styles.description}>{meal.description}</Text>
-            <Text style={styles.reason}>{buildReason(meal.rank, meal, goal)}</Text>
+            <Text style={styles.panelLabel}>Allergenes</Text>
+            {selectedMeal.allergens.length > 0 ? (
+              <View style={styles.chipList}>
+                {selectedMeal.allergens.map((allergen) => (
+                  <View key={allergen} style={[styles.chip, styles.allergenChip]}>
+                    <Text style={[styles.chipText, styles.allergenChipText]}>{allergen}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.panelCopy}>Aucun allergene majeur declare sur cette recette.</Text>
+            )}
 
-            <View style={styles.tags}>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>
-                  {GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal}
-                </Text>
-              </View>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{meal.calories} kcal</Text>
-              </View>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{meal.proteinG} g prot</Text>
-              </View>
-              {favoriteMealIds.includes(meal.id) ? (
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>Favori</Text>
-                </View>
-              ) : null}
-              {selectedMealId === meal.id ? (
-                <View style={styles.selectedTag}>
-                  <Text style={styles.selectedTagText}>Selectionne</Text>
-                </View>
-              ) : null}
-            </View>
-          </Pressable>
-        ))}
+            <Text style={styles.panelLabel}>Note</Text>
+            <Text style={styles.panelCopy}>{selectedMeal.ingredientNotes}</Text>
+          </View>
+        ) : null}
       </View>
+
+      {visibleMeals.length > 0 ? (
+        <View style={styles.alternativesSection}>
+          <Text style={styles.alternativesTitle}>Autres options</Text>
+          <View style={styles.list}>
+            {visibleMeals.map((meal) => (
+              <Pressable key={meal.id} style={styles.alternativeCard} onPress={() => onSelectMeal(meal.id)}>
+                <View style={styles.alternativeHeader}>
+                  <View style={styles.alternativeCopy}>
+                    <Text style={styles.alternativeEyebrow}>Option {meal.rank}</Text>
+                    <Text style={styles.alternativeName}>{meal.name}</Text>
+                  </View>
+                  <Text style={styles.alternativePrice}>{formatCurrency(meal.priceEur)}</Text>
+                </View>
+
+                <View style={styles.alternativeTags}>
+                  <Tag label={`${meal.proteinG} g prot`} compact />
+                  <Tag label={`${meal.calories} kcal`} compact />
+                  {favoriteMealIds.includes(meal.id) ? <Tag label="Favori" compact highlighted /> : null}
+                </View>
+
+                <View style={styles.switchButton}>
+                  <Text style={styles.switchButtonText}>Choisir a la place</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function Tag({
+  label,
+  compact = false,
+  highlighted = false,
+}: {
+  label: string;
+  compact?: boolean;
+  highlighted?: boolean;
+}) {
+  return (
+    <View style={[styles.tag, compact ? styles.tagCompact : null, highlighted ? styles.tagHighlighted : null]}>
+      <Text style={[styles.tagText, highlighted ? styles.tagTextHighlighted : null]}>{label}</Text>
+    </View>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
     </View>
   );
 }
@@ -203,26 +257,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
-  tipBox: {
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: theme.colors.goldSoft,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    gap: 4,
-  },
-  tipEyebrow: {
-    color: "#f1d893",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    fontWeight: "700",
-  },
-  tipCopy: {
-    color: theme.colors.textSoft,
-    lineHeight: 19,
-  },
-  expressCard: {
+  selectedCard: {
     borderRadius: 22,
     padding: 16,
     backgroundColor: "#132521",
@@ -230,33 +265,33 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderStrong,
     gap: 12,
   },
-  expressHeader: {
+  selectedHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 12,
   },
-  expressCopy: {
+  selectedCopy: {
     flex: 1,
     gap: 4,
   },
-  expressEyebrow: {
-    color: theme.colors.gold,
+  selectedEyebrow: {
+    color: theme.colors.mint,
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 1.3,
     fontWeight: "700",
   },
-  expressTitle: {
+  selectedTitle: {
     color: theme.colors.text,
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: "700",
   },
-  expressDescription: {
+  selectedDescription: {
     color: theme.colors.textSoft,
-    lineHeight: 20,
+    lineHeight: 19,
   },
-  expressPricePill: {
+  pricePill: {
     borderRadius: theme.radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -264,119 +299,228 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
   },
-  expressPriceText: {
+  pricePillText: {
     color: "#f1d893",
     fontWeight: "700",
   },
-  expressTags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  expressTag: {
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  expressTagText: {
-    color: theme.colors.text,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  expressButton: {
-    backgroundColor: theme.colors.mint,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-  },
-  expressButtonText: {
-    color: theme.colors.ink,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  list: {
-    gap: 12,
-  },
-  mealCard: {
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    gap: 10,
-  },
-  featuredMealCard: {
-    borderColor: theme.colors.borderStrong,
-    backgroundColor: "#132521",
-  },
-  selectedMealCard: {
-    borderColor: theme.colors.mint,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "flex-start",
-  },
-  headerCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  itemEyebrow: {
-    color: theme.colors.gold,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 1.4,
-  },
-  mealName: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  price: {
-    color: "#f1d893",
-    fontWeight: "700",
-  },
-  description: {
-    color: theme.colors.textSoft,
-    lineHeight: 20,
-  },
-  reason: {
-    color: theme.colors.textMuted,
-    lineHeight: 18,
-  },
-  tags: {
+  primaryTags: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   tag: {
-    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: theme.radius.pill,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  tagCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  tagHighlighted: {
+    backgroundColor: theme.colors.mintSoft,
+    borderColor: "rgba(111,212,168,0.32)",
   },
   tagText: {
     color: theme.colors.text,
     fontSize: 12,
+    fontWeight: "600",
   },
-  selectedTag: {
-    backgroundColor: theme.colors.mintSoft,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "rgba(111,212,168,0.35)",
-  },
-  selectedTagText: {
+  tagTextHighlighted: {
     color: theme.colors.mint,
-    fontSize: 12,
+  },
+  fastReason: {
+    borderRadius: 18,
+    padding: 12,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 4,
+  },
+  fastReasonTitle: {
+    color: "#f1d893",
     fontWeight: "700",
+  },
+  fastReasonCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
+  },
+  compactMetrics: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  metric: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 10,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 4,
+  },
+  metricLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+  },
+  metricValue: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  inlineActions: {
+    gap: 8,
+  },
+  secondaryAction: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  secondaryActionText: {
+    color: theme.colors.text,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  primaryAction: {
+    backgroundColor: theme.colors.gold,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  primaryActionSuccess: {
+    backgroundColor: theme.colors.mint,
+  },
+  primaryActionText: {
+    color: theme.colors.ink,
+    fontWeight: "700",
+    textAlign: "center",
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  detailToggle: {
+    alignSelf: "flex-start",
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  detailToggleText: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  detailPanel: {
+    gap: 10,
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  panelLabel: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  chipList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  chipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+  },
+  allergenChip: {
+    backgroundColor: "rgba(240,138,126,0.12)",
+    borderColor: "rgba(240,138,126,0.24)",
+  },
+  allergenChipText: {
+    color: theme.colors.danger,
+    fontWeight: "700",
+  },
+  panelCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+  },
+  alternativesSection: {
+    gap: 10,
+  },
+  alternativesTitle: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  list: {
+    gap: 10,
+  },
+  alternativeCard: {
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+    gap: 10,
+  },
+  alternativeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  alternativeCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  alternativeEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  alternativeName: {
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  alternativePrice: {
+    color: "#f1d893",
+    fontWeight: "700",
+  },
+  alternativeTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  switchButton: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  switchButtonText: {
+    color: theme.colors.text,
+    textAlign: "center",
+    fontWeight: "700",
   },
 });
