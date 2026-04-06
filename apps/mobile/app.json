@@ -1,15 +1,28 @@
 {
   "expo": {
     "name": "FEATNESS",
+    "owner": "kenams",
     "slug": "featness",
     "scheme": "featness",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "plugins": ["expo-notifications"],
+    "android": {
+      "package": "com.kenams.featness"
+    },
+    "plugins": [
+      "expo-notifications"
+    ],
     "splash": {
       "backgroundColor": "#08110f"
     },
-    "assetBundlePatterns": ["**/*"]
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b742b444-d258-4a90-bbe3-fa15937a974a"
+      }
+    }
   }
 }
