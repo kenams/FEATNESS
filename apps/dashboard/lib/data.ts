@@ -1,4 +1,9 @@
 import "server-only";
+import {
+  DEFAULT_MEAL_PRESENTATION,
+  getEffortCategoryForSlug,
+  MEAL_PRESENTATION_BY_SLUG,
+} from "@featness/shared";
 
 import type {
   AnalyticsLeaderboardItem,
@@ -129,11 +134,23 @@ export async function getDrinkBlends(): Promise<DrinkBlendRecord[]> {
     name: row.name,
     description: row.description,
     targetGoal: row.target_goal,
+    effortCategory: getEffortCategoryForSlug(row.slug),
     priceEur:
       typeof row.price_eur === "number"
         ? row.price_eur
         : Number(row.price_eur ?? 0),
     isAvailable: row.is_available ?? true,
+    calories: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).calories,
+    proteinG: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).proteinG,
+    carbsG: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).carbsG,
+    fatG: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).fatG,
+    preparationType:
+      (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).preparationType,
+    accent: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).accent,
+    ingredients: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).ingredients,
+    allergens: (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).allergens,
+    ingredientNotes:
+      (MEAL_PRESENTATION_BY_SLUG[row.slug] ?? DEFAULT_MEAL_PRESENTATION).ingredientNotes,
   }));
 }
 

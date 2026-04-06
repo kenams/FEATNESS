@@ -58,8 +58,18 @@ export type DrinkBlendRecord = {
   name: string;
   description: string;
   targetGoal: string;
+  effortCategory: "light" | "medium" | "intense";
   priceEur: number;
   isAvailable: boolean;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  preparationType: "lyophilise" | "auto_chauffant" | "assemblage_sec";
+  accent: string;
+  ingredients: string[];
+  allergens: string[];
+  ingredientNotes: string;
 };
 
 export type EnrichedOrder = PaymentRecord & {

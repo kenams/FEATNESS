@@ -104,6 +104,14 @@ function getRecommendationLabel(isRecommended: boolean): string {
   return isRecommended ? "Recommande FEATNESS" : "Non prioritaire";
 }
 
+function groupMealsByEffort(meals: SuggestedMeal[]) {
+  return {
+    light: meals.filter((meal) => meal.effortCategory === "light"),
+    medium: meals.filter((meal) => meal.effortCategory === "medium"),
+    intense: meals.filter((meal) => meal.effortCategory === "intense"),
+  };
+}
+
 export function SuggestedMealsCard({
   recommendedMeals,
   objectiveMeals,
@@ -147,6 +155,11 @@ export function SuggestedMealsCard({
     () => allMeals.filter((meal) => meal.id !== selectedMeal?.id && !recommendedIds.has(meal.id)),
     [allMeals, recommendedIds, selectedMeal?.id],
   );
+  const recommendedGroups = useMemo(
+    () => groupMealsByEffort(visibleRecommendedMeals),
+    [visibleRecommendedMeals],
+  );
+  const otherGroups = useMemo(() => groupMealsByEffort(visibleOtherMeals), [visibleOtherMeals]);
 
   if (!selectedMeal) {
     return null;
@@ -267,18 +280,14 @@ export function SuggestedMealsCard({
           <Text style={styles.sectionCopy}>
             Ceux-ci sont les plus coherents avec ta seance et ton objectif du moment.
           </Text>
-          <View style={styles.list}>
-            {visibleRecommendedMeals.map((meal) => (
-              <MealListItem
-                key={`recommended-${meal.id}`}
-                meal={meal}
-                isRecommended
-                isFavorite={favoriteMealIds.includes(meal.id)}
-                isSelected={meal.id === selectedMealId}
-                onPress={() => onSelectMeal(meal.id)}
-              />
-            ))}
-          </View>
+          <EffortGroupedList
+            groups={recommendedGroups}
+            listKeyPrefix="recommended"
+            favoriteMealIds={favoriteMealIds}
+            selectedMealId={selectedMealId}
+            onSelectMeal={onSelectMeal}
+            isRecommended
+          />
         </View>
       ) : null}
 
@@ -288,20 +297,62 @@ export function SuggestedMealsCard({
           <Text style={styles.sectionCopy}>
             Disponibles a la borne FEATNESS, mais moins pertinents que les recommandations vertes.
           </Text>
-          <View style={styles.list}>
-            {visibleOtherMeals.map((meal) => (
-              <MealListItem
-                key={`menu-${meal.id}`}
-                meal={meal}
-                isRecommended={false}
-                isFavorite={favoriteMealIds.includes(meal.id)}
-                isSelected={meal.id === selectedMealId}
-                onPress={() => onSelectMeal(meal.id)}
-              />
-            ))}
-          </View>
+          <EffortGroupedList
+            groups={otherGroups}
+            listKeyPrefix="menu"
+            favoriteMealIds={favoriteMealIds}
+            selectedMealId={selectedMealId}
+            onSelectMeal={onSelectMeal}
+            isRecommended={false}
+          />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function EffortGroupedList({
+  groups,
+  listKeyPrefix,
+  favoriteMealIds,
+  selectedMealId,
+  onSelectMeal,
+  isRecommended,
+}: {
+  groups: ReturnType<typeof groupMealsByEffort>;
+  listKeyPrefix: string;
+  favoriteMealIds: string[];
+  selectedMealId: string | null;
+  onSelectMeal: (mealId: string) => void;
+  isRecommended: boolean;
+}) {
+  const orderedGroups: Array<{ key: "light" | "medium" | "intense"; label: string }> = [
+    { key: "light", label: "Effort leger" },
+    { key: "medium", label: "Effort moyen" },
+    { key: "intense", label: "Effort intense" },
+  ];
+
+  return (
+    <View style={styles.list}>
+      {orderedGroups.map((group) =>
+        groups[group.key].length > 0 ? (
+          <View key={`${listKeyPrefix}-${group.key}`} style={styles.effortGroup}>
+            <Text style={styles.effortGroupTitle}>{group.label}</Text>
+            <View style={styles.groupList}>
+              {groups[group.key].map((meal) => (
+                <MealListItem
+                  key={`${listKeyPrefix}-${meal.id}`}
+                  meal={meal}
+                  isRecommended={isRecommended}
+                  isFavorite={favoriteMealIds.includes(meal.id)}
+                  isSelected={meal.id === selectedMealId}
+                  onPress={() => onSelectMeal(meal.id)}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null,
+      )}
     </View>
   );
 }
@@ -365,6 +416,17 @@ function MealListItem({
           <RecommendationPill recommended={isRecommended} />
           <Tag label={GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal} compact />
           <Tag label={`${meal.proteinG} g prot`} compact />
+          <Tag
+            label={
+              meal.allergens.length > 0
+                ? meal.allergens.length === 1
+                  ? meal.allergens[0]
+                  : `${meal.allergens.length} allergenes`
+                : "Sans allergene majeur"
+            }
+            compact
+            danger={meal.allergens.length > 0}
+          />
           {isFavorite ? <Tag label="Favori" compact highlighted /> : null}
         </View>
 
@@ -396,14 +458,31 @@ function Tag({
   label,
   compact = false,
   highlighted = false,
+  danger = false,
 }: {
   label: string;
   compact?: boolean;
   highlighted?: boolean;
+  danger?: boolean;
 }) {
   return (
-    <View style={[styles.tag, compact ? styles.tagCompact : null, highlighted ? styles.tagHighlighted : null]}>
-      <Text style={[styles.tagText, highlighted ? styles.tagTextHighlighted : null]}>{label}</Text>
+    <View
+      style={[
+        styles.tag,
+        compact ? styles.tagCompact : null,
+        highlighted ? styles.tagHighlighted : null,
+        danger ? styles.tagDanger : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.tagText,
+          highlighted ? styles.tagTextHighlighted : null,
+          danger ? styles.tagTextDanger : null,
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -585,6 +664,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.mintSoft,
     borderColor: "rgba(111,212,168,0.32)",
   },
+  tagDanger: {
+    backgroundColor: "rgba(240,138,126,0.12)",
+    borderColor: "rgba(240,138,126,0.24)",
+  },
   tagText: {
     color: theme.colors.text,
     fontSize: 12,
@@ -592,6 +675,9 @@ const styles = StyleSheet.create({
   },
   tagTextHighlighted: {
     color: theme.colors.mint,
+  },
+  tagTextDanger: {
+    color: theme.colors.danger,
   },
   fastReason: {
     borderRadius: 18,
@@ -743,6 +829,19 @@ const styles = StyleSheet.create({
     color: theme.colors.textSoft,
     fontSize: 12,
     lineHeight: 18,
+  },
+  effortGroup: {
+    gap: 8,
+  },
+  effortGroupTitle: {
+    color: theme.colors.gold,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  groupList: {
+    gap: 10,
   },
   section: {
     gap: 8,

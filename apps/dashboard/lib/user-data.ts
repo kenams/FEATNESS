@@ -1,6 +1,9 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import {
+  DEFAULT_MEAL_PRESENTATION,
+  getEffortCategoryForSlug,
+  MEAL_PRESENTATION_BY_SLUG,
   addMinutesToIso,
   type DispenseTokenRecord,
   type GoalKey,
@@ -330,10 +333,29 @@ export async function fetchAvailableDrinkBlends(
     name: String(row.name),
     description: String(row.description),
     targetGoal: String(row.target_goal),
+    effortCategory: getEffortCategoryForSlug(String(row.slug)),
     priceEur:
       typeof row.price_eur === "number"
         ? row.price_eur
         : Number(row.price_eur ?? 0),
     isAvailable: Boolean(row.is_available ?? true),
+    calories:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).calories,
+    proteinG:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).proteinG,
+    carbsG:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).carbsG,
+    fatG:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).fatG,
+    preparationType:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).preparationType,
+    accent:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).accent,
+    ingredients:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).ingredients,
+    allergens:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).allergens,
+    ingredientNotes:
+      (MEAL_PRESENTATION_BY_SLUG[String(row.slug)] ?? DEFAULT_MEAL_PRESENTATION).ingredientNotes,
   }));
 }

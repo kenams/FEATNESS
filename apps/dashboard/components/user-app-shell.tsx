@@ -123,6 +123,27 @@ function getReason(rank: number, meal: SuggestedMeal, goal: GoalKey): string {
   return "Bonne alternative si tu veux varier sans sortir du bon flux.";
 }
 
+function getEffortLabel(category: DrinkBlendRecord["effortCategory"]): string {
+  switch (category) {
+    case "light":
+      return "Effort leger";
+    case "medium":
+      return "Effort moyen";
+    case "intense":
+      return "Effort intense";
+    default:
+      return "Effort";
+  }
+}
+
+function groupMealsByEffort(meals: DrinkBlendRecord[]) {
+  return {
+    light: meals.filter((meal) => meal.effortCategory === "light"),
+    medium: meals.filter((meal) => meal.effortCategory === "medium"),
+    intense: meals.filter((meal) => meal.effortCategory === "intense"),
+  };
+}
+
 function getQuickStatus(
   hasSession: boolean,
   hasOnboarding: boolean,
@@ -217,8 +238,8 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
   }, [activeSession, meals]);
 
   const selectedMeal = useMemo(
-    () => suggestedMeals.find((meal) => meal.id === selectedMealId) ?? suggestedMeals[0] ?? null,
-    [selectedMealId, suggestedMeals],
+    () => meals.find((meal) => meal.id === selectedMealId) ?? suggestedMeals[0] ?? meals[0] ?? null,
+    [meals, selectedMealId, suggestedMeals],
   );
 
   const hasOnboarding = Boolean(profile?.onboardingCompleted);
@@ -264,6 +285,23 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     () => Object.fromEntries(meals.map((meal) => [meal.id, meal.name])) as Record<string, string>,
     [meals],
   );
+  const recommendedMealIds = useMemo(
+    () => new Set(suggestedMeals.map((meal) => meal.id)),
+    [suggestedMeals],
+  );
+  const visibleRecommendedMeals = useMemo(
+    () => suggestedMeals.filter((meal) => meal.id !== selectedMeal?.id),
+    [selectedMeal?.id, suggestedMeals],
+  );
+  const visibleOtherMeals = useMemo(
+    () => meals.filter((meal) => meal.id !== selectedMeal?.id && !recommendedMealIds.has(meal.id)),
+    [meals, recommendedMealIds, selectedMeal?.id],
+  );
+  const recommendedGroups = useMemo(
+    () => groupMealsByEffort(visibleRecommendedMeals),
+    [visibleRecommendedMeals],
+  );
+  const otherGroups = useMemo(() => groupMealsByEffort(visibleOtherMeals), [visibleOtherMeals]);
 
   useEffect(() => {
     let mounted = true;
@@ -382,26 +420,26 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
   }, [session?.user?.id, supabase]);
 
   useEffect(() => {
-    if (!activeSession || suggestedMeals.length === 0) {
+    if (!activeSession || meals.length === 0) {
       setSelectedMealId(null);
       return;
     }
 
     setSelectedMealId((current) => {
-      if (current && suggestedMeals.some((meal) => meal.id === current)) {
+      if (current && meals.some((meal) => meal.id === current)) {
         return current;
       }
 
       if (
         activeSession.selectedMealBlendId &&
-        suggestedMeals.some((meal) => meal.id === activeSession.selectedMealBlendId)
+        meals.some((meal) => meal.id === activeSession.selectedMealBlendId)
       ) {
         return activeSession.selectedMealBlendId;
       }
 
       return suggestedMeals[0]?.id ?? null;
     });
-  }, [activeSession?.id, activeSession?.selectedMealBlendId, suggestedMeals]);
+  }, [activeSession?.id, activeSession?.selectedMealBlendId, meals, suggestedMeals]);
 
   async function handleSaveProfile() {
     if (!session?.user) {
@@ -838,53 +876,121 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                 ) : null}
               </div>
 
-              {suggestedMeals.length > 0 ? (
+              {meals.length > 0 ? (
                 <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_0.9fr]">
                   <div className="grid gap-4">
-                    {suggestedMeals.map((meal) => (
-                      <button
-                        key={meal.id}
-                        type="button"
-                        onClick={() => setSelectedMealId(meal.id)}
-                        className={`rounded-[24px] border p-5 text-left transition ${
-                          selectedMeal?.id === meal.id
-                            ? "border-featness-gold bg-[#fff9ec]"
-                            : meal.rank === 1
-                              ? "border-emerald-300 bg-emerald-50"
-                              : "border-black/10 bg-[#f8faf9]"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-xs uppercase tracking-[0.18em] text-featness-gold">
-                              {meal.rank === 1 ? "Choix recommande" : `Option ${meal.rank}`}
-                            </p>
-                            <h3 className="mt-2 text-lg font-semibold">{meal.name}</h3>
-                          </div>
-                          <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-featness-ink">
-                            {formatCurrency(meal.priceEur)}
-                          </span>
+                    {[
+                      {
+                        title: "Recommandes FEATNESS",
+                        copy: "Badges verts : les plus coherents avec ta seance en cours.",
+                        groups: recommendedGroups,
+                        recommended: true,
+                      },
+                      {
+                        title: "Tous les plats disponibles",
+                        copy: "Badges rouges : disponibles aussi, mais moins prioritaires pour cet effort.",
+                        groups: otherGroups,
+                        recommended: false,
+                      },
+                    ].map((section) => (
+                      <div key={section.title} className="grid gap-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-featness-ink">{section.title}</h3>
+                          <p className="mt-1 text-sm text-featness-muted">{section.copy}</p>
                         </div>
-                        <p className="mt-3 text-sm text-featness-muted">{meal.description}</p>
-                        <p className="mt-3 text-sm text-featness-muted">
-                          {getReason(meal.rank, meal, activeSession?.workout.goal ?? "recovery")}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                          <span className="rounded-full bg-white px-3 py-1">
-                            {GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal}
-                          </span>
-                          {profile?.favoriteMealIds.includes(meal.id) ? (
-                            <span className="rounded-full bg-featness-ink px-3 py-1 text-white">
-                              Favori
-                            </span>
-                          ) : null}
-                          {selectedMeal?.id === meal.id ? (
-                            <span className="rounded-full bg-featness-gold px-3 py-1 font-semibold text-featness-ink">
-                              Selectionne
-                            </span>
-                          ) : null}
-                        </div>
-                      </button>
+                        {(["light", "medium", "intense"] as const).map((effortKey) =>
+                          section.groups[effortKey].length > 0 ? (
+                            <div key={`${section.title}-${effortKey}`} className="grid gap-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-featness-gold">
+                                {getEffortLabel(effortKey)}
+                              </p>
+                              {section.groups[effortKey].map((meal) => {
+                                const isSelected = selectedMeal?.id === meal.id;
+                                const allergensLabel =
+                                  meal.allergens.length > 0
+                                    ? meal.allergens.length === 1
+                                      ? meal.allergens[0]
+                                      : `${meal.allergens.length} allergenes`
+                                    : "Sans allergene majeur";
+
+                                return (
+                                  <button
+                                    key={meal.id}
+                                    type="button"
+                                    onClick={() => setSelectedMealId(meal.id)}
+                                    className={`rounded-[24px] border p-5 text-left transition ${
+                                      isSelected
+                                        ? "border-featness-gold bg-[#fff9ec]"
+                                        : section.recommended
+                                          ? "border-emerald-300 bg-emerald-50"
+                                          : "border-rose-200 bg-rose-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span
+                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                              section.recommended
+                                                ? "bg-emerald-100 text-emerald-800"
+                                                : "bg-rose-100 text-rose-700"
+                                            }`}
+                                          >
+                                            {section.recommended ? "Recommande FEATNESS" : "Non prioritaire"}
+                                          </span>
+                                          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-featness-muted">
+                                            {GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal}
+                                          </span>
+                                          <span
+                                            className={`rounded-full px-3 py-1 text-xs font-medium ${
+                                              meal.allergens.length > 0
+                                                ? "bg-rose-100 text-rose-700"
+                                                : "bg-slate-100 text-slate-600"
+                                            }`}
+                                          >
+                                            {allergensLabel}
+                                          </span>
+                                        </div>
+                                        <h4 className="mt-3 text-lg font-semibold text-featness-ink">{meal.name}</h4>
+                                        <p className="mt-2 text-sm text-featness-muted">{meal.description}</p>
+                                        <p className="mt-3 text-sm text-featness-muted">
+                                          {section.recommended
+                                            ? getReason((meal as SuggestedMeal).rank, meal as SuggestedMeal, activeSession?.workout.goal ?? "recovery")
+                                            : `Alternative disponible pour ${getEffortLabel(meal.effortCategory).toLowerCase()}.`}
+                                        </p>
+                                        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                                          <span className="rounded-full bg-white px-3 py-1">
+                                            {meal.proteinG} g prot
+                                          </span>
+                                          <span className="rounded-full bg-white px-3 py-1">
+                                            {meal.calories} kcal
+                                          </span>
+                                          <span className="rounded-full bg-white px-3 py-1">
+                                            {getEffortLabel(meal.effortCategory)}
+                                          </span>
+                                          {profile?.favoriteMealIds.includes(meal.id) ? (
+                                            <span className="rounded-full bg-featness-ink px-3 py-1 text-white">
+                                              Favori
+                                            </span>
+                                          ) : null}
+                                          {isSelected ? (
+                                            <span className="rounded-full bg-featness-gold px-3 py-1 font-semibold text-featness-ink">
+                                              Selectionne
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                      <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-featness-ink">
+                                        {formatCurrency(meal.priceEur)}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null,
+                        )}
+                      </div>
                     ))}
                   </div>
 
