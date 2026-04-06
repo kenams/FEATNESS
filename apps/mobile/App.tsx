@@ -658,6 +658,12 @@ export default function App() {
 
   const screenMeta = SCREEN_META[currentScreen];
   const isCompactScreen = currentScreen !== "home";
+  const showMealsQuickBar = Boolean(
+    currentScreen === "meals" && activeSession && selectedMeal,
+  );
+  const selectedMealIsConfirmed = Boolean(
+    selectedMeal && selectedMeal.id === confirmedMealId,
+  );
 
   function scrollToTop(animated = true) {
     scrollRef.current?.scrollTo({ y: 0, animated });
@@ -1697,7 +1703,10 @@ export default function App() {
       <View style={styles.shell}>
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[
+            styles.container,
+            showMealsQuickBar ? styles.containerWithMealsBar : null,
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <AnimatedSection delay={0}>
@@ -1825,6 +1834,38 @@ export default function App() {
             </View>
           </View>
         ) : null}
+
+        {showMealsQuickBar && selectedMeal ? (
+          <View style={styles.mealsQuickBarWrap}>
+            <View style={styles.mealsQuickBar}>
+              <View style={styles.mealsQuickBarCopy}>
+                <Text style={styles.mealsQuickBarLabel}>
+                  {selectedMealIsConfirmed ? "Plat valide" : "Plat selectionne"}
+                </Text>
+                <Text style={styles.mealsQuickBarTitle} numberOfLines={1}>
+                  {selectedMeal.name}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.mealsQuickBarButton, isBusy && styles.buttonDisabled]}
+                onPress={() =>
+                  selectedMealIsConfirmed
+                    ? openScreen("qr")
+                    : void handleConfirmMealChoice(selectedMeal.id)
+                }
+                disabled={isBusy}
+              >
+                <Text style={styles.mealsQuickBarButtonText}>
+                  {isBusy
+                    ? "Validation..."
+                    : selectedMealIsConfirmed
+                      ? "Aller au recap"
+                      : "Valider"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1841,6 +1882,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     gap: theme.spacing.md,
     paddingBottom: 132,
+  },
+  containerWithMealsBar: {
+    paddingBottom: 220,
   },
   hero: {
     overflow: "hidden",
@@ -2268,6 +2312,48 @@ const styles = StyleSheet.create({
     padding: 6,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
+  },
+  mealsQuickBarWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 92,
+    paddingHorizontal: theme.spacing.md,
+  },
+  mealsQuickBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: theme.radius.xl,
+    backgroundColor: "rgba(6,10,10,0.94)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  mealsQuickBarCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  mealsQuickBarLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  mealsQuickBarTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  mealsQuickBarButton: {
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.gold,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  mealsQuickBarButtonText: {
+    color: theme.colors.ink,
+    fontWeight: "700",
   },
   tabButton: {
     flex: 1,
