@@ -14,6 +14,7 @@ import {
   type GoalKey,
   type PrimaryObjectiveKey,
   type SessionSuggestion,
+  type SportKey,
   type UserProfile,
   type UserWorkoutInput,
   type WorkoutSessionRecord,
@@ -58,6 +59,7 @@ type JourneyStep = {
 };
 
 type ScreenKey = "home" | "sessions" | "meals" | "qr" | "profile";
+type MealViewKey = "recommended" | "objective" | "all";
 
 type ScreenMeta = {
   eyebrow: string;
@@ -196,6 +198,136 @@ function buildSuggestedMeals(
     }));
 }
 
+function getEffortCategoryLabel(category: DrinkBlendRecord["effortCategory"]): string {
+  switch (category) {
+    case "light":
+      return "Effort leger";
+    case "medium":
+      return "Effort moyen";
+    case "intense":
+      return "Effort intense";
+    default:
+      return "Effort";
+  }
+}
+
+function getObjectiveHeading(
+  objective: PrimaryObjectiveKey | null,
+  sport: SportKey | null,
+): { title: string; copy: string } {
+  if (objective === "gain_muscle") {
+    return {
+      title: "Prise de muscle",
+      copy: "Plus de proteines et des glucides assez hauts pour soutenir la masse musculaire.",
+    };
+  }
+
+  if (objective === "lose_weight") {
+    return {
+      title: "Perte de poids",
+      copy: "Options plus legeres, digestes, avec de bonnes proteines pour perdre sans te vider.",
+    };
+  }
+
+  if (objective === "improve_endurance") {
+    return {
+      title: "Cardio / endurance",
+      copy: "On pousse surtout les glucides et l'hydratation pour mieux repartir apres l'effort.",
+    };
+  }
+
+  if (sport && ["running", "cycling", "swimming", "rowing"].includes(sport)) {
+    return {
+      title: "Cardio / endurance",
+      copy: "Les plats ici aident surtout a recharger l'energie et l'hydratation apres une seance cardio.",
+    };
+  }
+
+  return {
+    title: "Equilibre FEATNESS",
+    copy: "Des plats stables et complets pour rester performant sans trop te poser de questions.",
+  };
+}
+
+function buildObjectiveMeals(
+  meals: DrinkBlendRecord[],
+  objective: PrimaryObjectiveKey | null,
+  sport: SportKey | null,
+  sessionGoal: GoalKey | null,
+  recommendedBlend: string | null,
+): SuggestedMeal[] {
+  return [...meals]
+    .map((meal) => {
+      let score = 0;
+
+      if (recommendedBlend && meal.name === recommendedBlend) {
+        score += 4;
+      }
+
+      if (sessionGoal && meal.targetGoal === sessionGoal) {
+        score += 3;
+      }
+
+      if (objective === "lose_weight") {
+        if (meal.calories <= 560) score += 3;
+        if (meal.proteinG >= 28) score += 2;
+        if (meal.effortCategory === "light") score += 2;
+        if (meal.effortCategory === "medium") score += 1;
+      } else if (objective === "gain_muscle") {
+        if (meal.proteinG >= 35) score += 3;
+        if (meal.calories >= 560) score += 2;
+        if (meal.carbsG >= 55) score += 2;
+        if (meal.effortCategory !== "light") score += 2;
+      } else if (objective === "improve_endurance") {
+        if (meal.carbsG >= 60) score += 3;
+        if (meal.targetGoal === "performance") score += 3;
+        if (meal.effortCategory !== "light") score += 2;
+      } else {
+        if (meal.calories >= 430 && meal.calories <= 680) score += 2;
+        if (meal.proteinG >= 28) score += 2;
+        if (meal.effortCategory === "medium") score += 2;
+      }
+
+      if (sport && ["running", "cycling", "swimming", "rowing"].includes(sport)) {
+        if (meal.carbsG >= 55) score += 2;
+        if (meal.targetGoal !== "recovery") score += 1;
+      }
+
+      if (sport === "strength") {
+        if (meal.proteinG >= 32) score += 2;
+      }
+
+      return { ...meal, score };
+    })
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return left.priceEur - right.priceEur;
+    })
+    .slice(0, 8)
+    .map((meal, index) => ({ ...meal, rank: index + 1 }));
+}
+
+function buildMenuMeals(meals: DrinkBlendRecord[]): SuggestedMeal[] {
+  const effortOrder: Record<DrinkBlendRecord["effortCategory"], number> = {
+    light: 0,
+    medium: 1,
+    intense: 2,
+  };
+
+  return [...meals]
+    .sort((left, right) => {
+      if (effortOrder[left.effortCategory] !== effortOrder[right.effortCategory]) {
+        return effortOrder[left.effortCategory] - effortOrder[right.effortCategory];
+      }
+
+      return left.name.localeCompare(right.name);
+    })
+    .map((meal, index) => ({ ...meal, rank: index + 1, score: 0 }));
+}
+
 function getFeedbackTone(message: string | null): "neutral" | "success" | "warning" {
   if (!message) {
     return "neutral";
@@ -305,6 +437,7 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
+  const [mealView, setMealView] = useState<MealViewKey>("recommended");
   const scrollRef = useRef<ScrollView | null>(null);
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const screenTranslateY = useRef(new Animated.Value(0)).current;
@@ -341,10 +474,26 @@ export default function App() {
     );
   }, [activeSession, availableMeals]);
 
-  const selectedMeal = useMemo(
-    () => suggestedMeals.find((meal) => meal.id === selectedMealId) ?? suggestedMeals[0] ?? null,
-    [selectedMealId, suggestedMeals],
+  const objectiveMeals = useMemo(
+    () =>
+      buildObjectiveMeals(
+        availableMeals,
+        profile?.primaryObjective ?? null,
+        activeSession?.workout.sport ?? profile?.preferredSport ?? null,
+        activeSession?.workout.goal ?? profile?.preferredGoal ?? null,
+        activeSession?.recommendation.recommendedBlend ?? null,
+      ),
+    [
+      activeSession?.recommendation.recommendedBlend,
+      activeSession?.workout.goal,
+      activeSession?.workout.sport,
+      availableMeals,
+      profile?.preferredGoal,
+      profile?.preferredSport,
+      profile?.primaryObjective,
+    ],
   );
+  const menuMeals = useMemo(() => buildMenuMeals(availableMeals), [availableMeals]);
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const confirmedMealId = activeSession?.selectedMealBlendId ?? null;
   const hasSelectedMeal = Boolean(confirmedMealId);
@@ -363,6 +512,23 @@ export default function App() {
 
     return matchingSuggestion?.key ?? null;
   }, [activeSession, sessionSuggestions]);
+  const selectedMeal = useMemo(
+    () =>
+      availableMeals.find((meal) => meal.id === selectedMealId) ??
+      suggestedMeals[0] ??
+      objectiveMeals[0] ??
+      menuMeals[0] ??
+      null,
+    [availableMeals, menuMeals, objectiveMeals, selectedMealId, suggestedMeals],
+  );
+  const objectiveHeading = useMemo(
+    () =>
+      getObjectiveHeading(
+        profile?.primaryObjective ?? null,
+        activeSession?.workout.sport ?? profile?.preferredSport ?? null,
+      ),
+    [activeSession?.workout.sport, profile?.preferredSport, profile?.primaryObjective],
+  );
   const feedbackTone = getFeedbackTone(feedbackMessage);
   const recommendedScreen = useMemo(
     () =>
@@ -589,10 +755,11 @@ export default function App() {
         setHistory(nextHistory);
         setAvailableMeals(nextMeals);
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
-        setActiveSession(nextActiveSession);
-        setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
-        setCurrentScreen("home");
-        scrollToTop(false);
+      setActiveSession(nextActiveSession);
+      setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
+      setMealView("recommended");
+      setCurrentScreen("home");
+      scrollToTop(false);
       } catch (error) {
         if (!cancelled) {
           setFeedbackMessage(
@@ -651,26 +818,31 @@ export default function App() {
   }, [session?.user?.id, supabaseClient]);
 
   useEffect(() => {
-    if (!activeSession || suggestedMeals.length === 0) {
+    if (!activeSession || availableMeals.length === 0) {
       setSelectedMealId(null);
       return;
     }
 
     setSelectedMealId((currentMealId) => {
-      if (currentMealId && suggestedMeals.some((meal) => meal.id === currentMealId)) {
+      if (currentMealId && availableMeals.some((meal) => meal.id === currentMealId)) {
         return currentMealId;
       }
 
       if (
         activeSession.selectedMealBlendId &&
-        suggestedMeals.some((meal) => meal.id === activeSession.selectedMealBlendId)
+        availableMeals.some((meal) => meal.id === activeSession.selectedMealBlendId)
       ) {
         return activeSession.selectedMealBlendId;
       }
 
       return suggestedMeals[0]?.id ?? null;
     });
-  }, [activeSession?.id, activeSession?.selectedMealBlendId, suggestedMeals]);
+  }, [
+    activeSession?.id,
+    activeSession?.selectedMealBlendId,
+    availableMeals,
+    suggestedMeals,
+  ]);
 
   useEffect(() => {
     if (!session?.user) {
@@ -889,6 +1061,7 @@ export default function App() {
   async function handleSignOut() {
     if (!supabaseClient) {
       setSession(null);
+      setMealView("recommended");
       setCurrentScreen("home");
       setFeedbackMessage("Mode demo : aucune session distante a fermer.");
       return;
@@ -897,6 +1070,7 @@ export default function App() {
     setIsBusy(true);
     const { error } = await supabaseClient.auth.signOut();
     setIsBusy(false);
+    setMealView("recommended");
     setCurrentScreen("home");
     scrollToTop();
     setFeedbackMessage(error ? error.message : "Session fermee.");
@@ -971,6 +1145,7 @@ export default function App() {
         buildNutritionRecommendation(workout),
         `${suggestion.title} lancee. Tu arrives maintenant directement sur les plats recommandes.`,
       );
+      setMealView("recommended");
       setCurrentScreen("meals");
       scrollToTop();
     } catch (error) {
@@ -979,6 +1154,15 @@ export default function App() {
       );
     } finally {
       setIsBusy(false);
+    }
+  }
+
+  function handleSelectMeal(mealId: string) {
+    const meal = availableMeals.find((item) => item.id === mealId) ?? null;
+    setSelectedMealId(mealId);
+
+    if (meal) {
+      setFeedbackMessage(`${meal.name} selectionne. Verifie en haut puis valide ton recap.`);
     }
   }
 
@@ -1015,7 +1199,7 @@ export default function App() {
   async function handleConfirmMealChoice(mealIdOverride?: string | null) {
     const targetMeal =
       (mealIdOverride
-        ? suggestedMeals.find((meal) => meal.id === mealIdOverride) ?? null
+        ? availableMeals.find((meal) => meal.id === mealIdOverride) ?? null
         : selectedMeal) ?? null;
 
     if (!targetMeal || !activeSession || !supabaseClient || !session?.user) {
@@ -1329,11 +1513,18 @@ export default function App() {
         </AnimatedSection>
         <AnimatedSection delay={60}>
           <SuggestedMealsCard
-            meals={suggestedMeals}
+            recommendedMeals={suggestedMeals}
+            objectiveMeals={objectiveMeals}
+            allMeals={menuMeals}
             goal={activeSession.workout.goal}
+            objectiveTitle={objectiveHeading.title}
+            objectiveCopy={objectiveHeading.copy}
+            menuTitle="Tous les plats FEATNESS disponibles a la borne"
             selectedMealId={selectedMealId}
             favoriteMealIds={profile?.favoriteMealIds ?? []}
-            onSelectMeal={setSelectedMealId}
+            mealView={mealView}
+            onMealViewChange={setMealView}
+            onSelectMeal={handleSelectMeal}
             onQuickConfirmRecommended={() =>
               void handleConfirmMealChoice(selectedMealId ?? suggestedMeals[0]?.id ?? null)
             }

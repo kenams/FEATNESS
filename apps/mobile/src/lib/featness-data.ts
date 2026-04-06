@@ -18,6 +18,7 @@ export type DrinkBlendRecord = {
   name: string;
   description: string;
   targetGoal: string;
+  effortCategory: "light" | "medium" | "intense";
   priceEur: number;
   isAvailable: boolean;
   calories: number;
@@ -579,6 +580,38 @@ const SIMULATED_KIOSKS: KioskRecord[] = [
   },
 ];
 
+const LIGHT_EFFORT_SLUGS = new Set([
+  "bowl-poulet-riz-courgette",
+  "omelette-sport-tartines-completes",
+  "skyr-bowl-banane-flocons-davoine",
+  "wrap-dinde-avocat",
+  "saumon-pommes-de-terre-haricots-verts",
+  "porridge-proteine-post-cardio",
+]);
+
+const MEDIUM_EFFORT_SLUGS = new Set([
+  "poulet-patate-douce-brocoli",
+  "bowl-quinoa-thon-avocat",
+  "pates-completes-au-poulet",
+  "riz-boeuf-maigre-poivrons",
+  "chili-leger-recuperation",
+  "salade-lentilles-oeufs-feta",
+  "burrito-bowl-dinde-riz",
+  "cabillaud-semoule-legumes-rotis",
+]);
+
+function getEffortCategoryForSlug(slug: string): "light" | "medium" | "intense" {
+  if (LIGHT_EFFORT_SLUGS.has(slug)) {
+    return "light";
+  }
+
+  if (MEDIUM_EFFORT_SLUGS.has(slug)) {
+    return "medium";
+  }
+
+  return "intense";
+}
+
 function mapProfileRow(row: Record<string, unknown>): UserProfile {
   return {
     id: String(row.id),
@@ -648,6 +681,7 @@ function mapDrinkBlendRow(row: Record<string, unknown>): DrinkBlendRecord {
     name: String(row.name),
     description: String(row.description ?? ""),
     targetGoal: String(row.target_goal ?? ""),
+    effortCategory: getEffortCategoryForSlug(String(row.slug)),
     priceEur:
       typeof row.price_eur === "number"
         ? row.price_eur

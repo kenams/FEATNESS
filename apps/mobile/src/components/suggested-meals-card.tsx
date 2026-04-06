@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { GoalKey } from "@featness/shared";
@@ -11,11 +11,20 @@ type SuggestedMeal = DrinkBlendRecord & {
   score: number;
 };
 
+type MealViewKey = "recommended" | "objective" | "all";
+
 type SuggestedMealsCardProps = {
-  meals: SuggestedMeal[];
+  recommendedMeals: SuggestedMeal[];
+  objectiveMeals: SuggestedMeal[];
+  allMeals: SuggestedMeal[];
   goal: GoalKey;
+  objectiveTitle: string;
+  objectiveCopy: string;
+  menuTitle: string;
+  mealView: MealViewKey;
   selectedMealId: string | null;
   favoriteMealIds: string[];
+  onMealViewChange: (view: MealViewKey) => void;
   onSelectMeal: (mealId: string) => void;
   onQuickConfirmRecommended: () => void;
   onToggleFavorite: () => void;
@@ -53,11 +62,31 @@ function getPreparationEta(type: DrinkBlendRecord["preparationType"]): string {
   }
 }
 
+function getEffortLabel(category: DrinkBlendRecord["effortCategory"]): string {
+  switch (category) {
+    case "light":
+      return "Effort leger";
+    case "medium":
+      return "Effort moyen";
+    case "intense":
+      return "Effort intense";
+    default:
+      return "Effort";
+  }
+}
+
 export function SuggestedMealsCard({
-  meals,
+  recommendedMeals,
+  objectiveMeals,
+  allMeals,
   goal,
+  objectiveTitle,
+  objectiveCopy,
+  menuTitle,
+  mealView,
   selectedMealId,
   favoriteMealIds,
+  onMealViewChange,
   onSelectMeal,
   onQuickConfirmRecommended,
   onToggleFavorite,
@@ -67,20 +96,60 @@ export function SuggestedMealsCard({
 }: SuggestedMealsCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
-  if (meals.length === 0) {
+  const selectedMeal = useMemo(
+    () =>
+      allMeals.find((meal) => meal.id === selectedMealId) ??
+      recommendedMeals[0] ??
+      objectiveMeals[0] ??
+      allMeals[0] ??
+      null,
+    [allMeals, objectiveMeals, recommendedMeals, selectedMealId],
+  );
+
+  const listMeals = useMemo(() => {
+    switch (mealView) {
+      case "objective":
+        return objectiveMeals;
+      case "all":
+        return allMeals;
+      case "recommended":
+      default:
+        return recommendedMeals;
+    }
+  }, [allMeals, mealView, objectiveMeals, recommendedMeals]);
+
+  const visibleMeals = listMeals.filter((meal) => meal.id !== selectedMeal?.id);
+
+  if (!selectedMeal) {
     return null;
   }
-
-  const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
-  const visibleMeals = meals.filter((meal) => meal.id !== selectedMeal.id);
 
   return (
     <View style={styles.card}>
       <Text style={styles.cardEyebrow}>Plats</Text>
       <Text style={styles.cardTitle}>Choix rapide FEATNESS</Text>
       <Text style={styles.helperText}>
-        Ton choix en cours est affiche en haut. Les autres options restent disponibles juste en dessous.
+        Le plat choisi remonte tout en haut. Tu peux ensuite comparer par reco, par objectif
+        ou via tout le menu.
       </Text>
+
+      <View style={styles.segmentedTabs}>
+        <MealTab
+          label="Pour toi"
+          active={mealView === "recommended"}
+          onPress={() => onMealViewChange("recommended")}
+        />
+        <MealTab
+          label="Objectif"
+          active={mealView === "objective"}
+          onPress={() => onMealViewChange("objective")}
+        />
+        <MealTab
+          label="Menu borne"
+          active={mealView === "all"}
+          onPress={() => onMealViewChange("all")}
+        />
+      </View>
 
       <View style={styles.selectedCard}>
         <View style={styles.selectedHeader}>
@@ -98,8 +167,8 @@ export function SuggestedMealsCard({
 
         <View style={styles.primaryTags}>
           <Tag label={GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal} />
+          <Tag label={getEffortLabel(selectedMeal.effortCategory)} />
           <Tag label={`${selectedMeal.proteinG} g prot`} />
-          <Tag label={`${selectedMeal.calories} kcal`} />
           <Tag label={getPreparationEta(selectedMeal.preparationType)} />
         </View>
 
@@ -109,16 +178,9 @@ export function SuggestedMealsCard({
         </View>
 
         <View style={styles.compactMetrics}>
+          <Metric label="Calories" value={`${selectedMeal.calories} kcal`} />
           <Metric label="Glucides" value={`${selectedMeal.carbsG} g`} />
           <Metric label="Lipides" value={`${selectedMeal.fatG} g`} />
-          <Metric
-            label="Allergenes"
-            value={
-              selectedMeal.allergens.length > 0
-                ? `${selectedMeal.allergens.length} declares`
-                : "Aucun majeur"
-            }
-          />
         </View>
 
         <View style={styles.inlineActions}>
@@ -128,7 +190,11 @@ export function SuggestedMealsCard({
             </Text>
           </Pressable>
           <Pressable
-            style={[styles.primaryAction, isConfirmed && styles.primaryActionSuccess, isBusy && styles.buttonDisabled]}
+            style={[
+              styles.primaryAction,
+              isConfirmed && styles.primaryActionSuccess,
+              isBusy && styles.buttonDisabled,
+            ]}
             onPress={onQuickConfirmRecommended}
             disabled={isBusy}
           >
@@ -174,35 +240,81 @@ export function SuggestedMealsCard({
         ) : null}
       </View>
 
+      <View style={styles.contextPanel}>
+        <Text style={styles.contextTitle}>
+          {mealView === "recommended"
+            ? "Plats les plus coherents avec ta seance"
+            : mealView === "objective"
+              ? objectiveTitle
+              : menuTitle}
+        </Text>
+        <Text style={styles.contextCopy}>
+          {mealView === "recommended"
+            ? "FEATNESS trie d'abord pour toi : effort, objectif et recuperation."
+            : mealView === "objective"
+              ? objectiveCopy
+              : "Liste complete des plats disponibles sur une borne FEATNESS via QR."}
+        </Text>
+      </View>
+
       {visibleMeals.length > 0 ? (
-        <View style={styles.alternativesSection}>
-          <Text style={styles.alternativesTitle}>Autres options</Text>
-          <View style={styles.list}>
-            {visibleMeals.map((meal) => (
-              <Pressable key={meal.id} style={styles.alternativeCard} onPress={() => onSelectMeal(meal.id)}>
+        <View style={styles.list}>
+          {visibleMeals.map((meal) => {
+            const isSelected = meal.id === selectedMealId;
+
+            return (
+              <Pressable
+                key={`${mealView}-${meal.id}`}
+                style={[styles.alternativeCard, isSelected ? styles.alternativeCardSelected : null]}
+                onPress={() => onSelectMeal(meal.id)}
+              >
                 <View style={styles.alternativeHeader}>
                   <View style={styles.alternativeCopy}>
-                    <Text style={styles.alternativeEyebrow}>Option {meal.rank}</Text>
+                    <Text style={styles.alternativeEyebrow}>
+                      {mealView === "all" ? getEffortLabel(meal.effortCategory) : `Option ${meal.rank}`}
+                    </Text>
                     <Text style={styles.alternativeName}>{meal.name}</Text>
+                    <Text style={styles.alternativeDescription} numberOfLines={2}>
+                      {meal.description}
+                    </Text>
                   </View>
                   <Text style={styles.alternativePrice}>{formatCurrency(meal.priceEur)}</Text>
                 </View>
 
                 <View style={styles.alternativeTags}>
+                  <Tag label={GOAL_LABELS[meal.targetGoal as GoalKey] ?? meal.targetGoal} compact />
                   <Tag label={`${meal.proteinG} g prot`} compact />
                   <Tag label={`${meal.calories} kcal`} compact />
                   {favoriteMealIds.includes(meal.id) ? <Tag label="Favori" compact highlighted /> : null}
                 </View>
 
-                <View style={styles.switchButton}>
-                  <Text style={styles.switchButtonText}>Choisir a la place</Text>
+                <View style={[styles.switchButton, isSelected ? styles.switchButtonSelected : null]}>
+                  <Text style={[styles.switchButtonText, isSelected ? styles.switchButtonTextSelected : null]}>
+                    {isSelected ? "Selectionne" : "Choisir ce plat"}
+                  </Text>
                 </View>
               </Pressable>
-            ))}
-          </View>
+            );
+          })}
         </View>
       ) : null}
     </View>
+  );
+}
+
+function MealTab({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={[styles.tabChip, active ? styles.tabChipActive : null]} onPress={onPress}>
+      <Text style={[styles.tabChipText, active ? styles.tabChipTextActive : null]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -256,6 +368,33 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+  },
+  segmentedTabs: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  tabChip: {
+    flexGrow: 1,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  tabChipActive: {
+    backgroundColor: theme.colors.goldSoft,
+    borderColor: theme.colors.borderStrong,
+  },
+  tabChipText: {
+    color: theme.colors.textSoft,
+    fontWeight: "700",
+    textAlign: "center",
+    fontSize: 12,
+  },
+  tabChipTextActive: {
+    color: "#f1d893",
   },
   selectedCard: {
     borderRadius: 22,
@@ -461,13 +600,22 @@ const styles = StyleSheet.create({
     color: theme.colors.textSoft,
     lineHeight: 20,
   },
-  alternativesSection: {
-    gap: 10,
+  contextPanel: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 6,
   },
-  alternativesTitle: {
+  contextTitle: {
     color: theme.colors.text,
     fontSize: 16,
     fontWeight: "700",
+  },
+  contextCopy: {
+    color: theme.colors.textMuted,
+    lineHeight: 19,
   },
   list: {
     gap: 10,
@@ -479,6 +627,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surfaceMuted,
     gap: 10,
+  },
+  alternativeCardSelected: {
+    borderColor: "rgba(111,212,168,0.36)",
+    backgroundColor: theme.colors.mintSoft,
   },
   alternativeHeader: {
     flexDirection: "row",
@@ -501,6 +653,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+  alternativeDescription: {
+    color: theme.colors.textMuted,
+    lineHeight: 18,
+  },
   alternativePrice: {
     color: "#f1d893",
     fontWeight: "700",
@@ -518,9 +674,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  switchButtonSelected: {
+    backgroundColor: theme.colors.mint,
+    borderColor: "rgba(111,212,168,0.32)",
+  },
   switchButtonText: {
     color: theme.colors.text,
     textAlign: "center",
     fontWeight: "700",
+  },
+  switchButtonTextSelected: {
+    color: theme.colors.ink,
   },
 });
