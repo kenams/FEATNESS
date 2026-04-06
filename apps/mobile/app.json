@@ -11,7 +11,15 @@
       "package": "com.kenams.featness"
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ]
     ],
     "splash": {
       "backgroundColor": "#08110f"
