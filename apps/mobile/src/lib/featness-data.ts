@@ -127,6 +127,7 @@ function mapSessionRow(row: Record<string, unknown>): WorkoutSessionRecord {
     },
     preparationStatus: row.preparation_status as WorkoutSessionRecord["preparationStatus"],
     selectedMealBlendId: (row.selected_meal_blend_id as string | null) ?? null,
+    isFavorite: Boolean(row.is_favorite),
   };
 }
 
@@ -400,6 +401,29 @@ export async function clearSelectedMealChoice(
     .from("workout_sessions")
     .update({
       selected_meal_blend_id: null,
+    })
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSessionRow(data);
+}
+
+export async function setWorkoutSessionFavorite(
+  client: SupabaseClient,
+  userId: string,
+  sessionId: string,
+  isFavorite: boolean,
+): Promise<WorkoutSessionRecord> {
+  const { data, error } = await client
+    .from("workout_sessions")
+    .update({
+      is_favorite: isFavorite,
     })
     .eq("id", sessionId)
     .eq("user_id", userId)

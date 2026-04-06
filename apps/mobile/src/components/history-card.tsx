@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import type { WorkoutSessionRecord } from "@featness/shared";
 import { mobileShadow, theme } from "../theme";
@@ -6,6 +7,8 @@ import { mobileShadow, theme } from "../theme";
 type HistoryCardProps = {
   sessions: WorkoutSessionRecord[];
   mealNamesById: Record<string, string>;
+  onToggleFavorite?: (session: WorkoutSessionRecord) => void;
+  isBusy?: boolean;
 };
 
 function formatDate(value: string): string {
@@ -40,7 +43,12 @@ function getStatusStyle(status: WorkoutSessionRecord["preparationStatus"]) {
   }
 }
 
-export function HistoryCard({ sessions, mealNamesById }: HistoryCardProps) {
+export function HistoryCard({
+  sessions,
+  mealNamesById,
+  onToggleFavorite,
+  isBusy = false,
+}: HistoryCardProps) {
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Memoire</Text>
@@ -79,8 +87,23 @@ export function HistoryCard({ sessions, mealNamesById }: HistoryCardProps) {
                   </Text>
                 )}
               </View>
-              <View style={[styles.statusPill, statusStyle.wrap]}>
-                <Text style={[styles.statusText, statusStyle.text]}>{session.preparationStatus}</Text>
+              <View style={styles.itemActions}>
+                {onToggleFavorite ? (
+                  <Pressable
+                    style={[styles.favoriteButton, isBusy && styles.favoriteButtonDisabled]}
+                    onPress={() => onToggleFavorite(session)}
+                    disabled={isBusy}
+                  >
+                    <MaterialCommunityIcons
+                      name={session.isFavorite ? "star" : "star-outline"}
+                      size={18}
+                      color={session.isFavorite ? theme.colors.gold : theme.colors.textMuted}
+                    />
+                  </Pressable>
+                ) : null}
+                <View style={[styles.statusPill, statusStyle.wrap]}>
+                  <Text style={[styles.statusText, statusStyle.text]}>{session.preparationStatus}</Text>
+                </View>
               </View>
             </View>
           );
@@ -188,5 +211,22 @@ const styles = StyleSheet.create({
   },
   statusTextDone: {
     color: theme.colors.text,
+  },
+  itemActions: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  favoriteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  favoriteButtonDisabled: {
+    opacity: 0.6,
   },
 });

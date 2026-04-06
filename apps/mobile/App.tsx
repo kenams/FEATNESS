@@ -43,6 +43,7 @@ import {
   saveProfile,
   saveSelectedMealChoice,
   saveUserPreferences,
+  setWorkoutSessionFavorite,
   type DrinkBlendRecord,
 } from "./src/lib/featness-data";
 import { registerForPushNotificationsAsync } from "./src/lib/notifications";
@@ -228,6 +229,18 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
   return "success";
 }
 
+function formatTokenRemaining(expiresAt: string, nowMs = Date.now()): string {
+  const remainingMs = new Date(expiresAt).getTime() - nowMs;
+
+  if (remainingMs <= 0) {
+    return "expire";
+  }
+
+  const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+
+  return `${remainingMinutes} min`;
+}
+
 function formatRuntimeError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -337,6 +350,7 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
+  const [activeTokenNow, setActiveTokenNow] = useState(Date.now());
   const scrollRef = useRef<ScrollView | null>(null);
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const screenTranslateY = useRef(new Animated.Value(0)).current;
@@ -539,6 +553,19 @@ export default function App() {
   );
 
   const latestSelectedMealName = (confirmedMealId && mealNamesById[confirmedMealId]) || null;
+  const latestSession = history[0] ?? null;
+  const favoriteSessions = history.filter((sessionItem) => sessionItem.isFavorite).slice(0, 3);
+  const activeTokenSession =
+    (activeToken
+      ? history.find((sessionItem) => sessionItem.id === activeToken.sessionId) ?? null
+      : null) ?? activeSession;
+  const activeTokenMealName =
+    (activeTokenSession?.selectedMealBlendId
+      ? mealNamesById[activeTokenSession.selectedMealBlendId] ?? null
+      : null) ?? latestSelectedMealName;
+  const activeTokenRemaining = activeToken
+    ? formatTokenRemaining(activeToken.expiresAt, activeTokenNow)
+    : null;
   const recentSessions = history.slice(0, 3);
   const mealSelectionsCount = history.filter((sessionItem) => Boolean(sessionItem.selectedMealBlendId)).length;
   const activeSuggestion =
@@ -582,6 +609,18 @@ export default function App() {
       }),
     ]).start();
   }, [currentScreen, screenOpacity, screenTranslateY]);
+
+  useEffect(() => {
+    if (!activeToken) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setActiveTokenNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeToken]);
 
   useEffect(() => {
     if (!supabaseClient) {
@@ -1067,6 +1106,82 @@ export default function App() {
     }
   }
 
+  async function handleReplaySession(sessionItem: WorkoutSessionRecord, sourceLabel: string) {
+    if (!supabaseClient || !session?.user || !profile?.onboardingCompleted) {
+      setFeedbackMessage("Complete d'abord ton profil pour relancer une seance.");
+      return;
+    }
+
+    setIsBusy(true);
+    setFeedbackMessage(null);
+
+    try {
+      const workout: UserWorkoutInput = {
+        ...sessionItem.workout,
+        weightKg: Number(weightKg) || sessionItem.workout.weightKg,
+      };
+
+      const nextProfile = await saveUserPreferences(supabaseClient, session.user.id, {
+        preferredSport: workout.sport,
+        preferredGoal: workout.goal,
+        favoriteMealIds: profile.favoriteMealIds,
+      });
+
+      setProfile(nextProfile);
+
+      await createSessionFlow(
+        workout,
+        buildNutritionRecommendation(workout),
+        `${sourceLabel} relancee. FEATNESS a deja recalcule tes recommandations.`,
+      );
+      setCurrentScreen("meals");
+      scrollToTop();
+    } catch (error) {
+      setFeedbackMessage(
+        formatRuntimeError(error, "Impossible de relancer cette seance."),
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleToggleFavoriteSession(sessionItem: WorkoutSessionRecord) {
+    if (!supabaseClient || !session?.user) {
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+      setFeedbackMessage(null);
+      const updatedSession = await setWorkoutSessionFavorite(
+        supabaseClient,
+        session.user.id,
+        sessionItem.id,
+        !sessionItem.isFavorite,
+      );
+
+      setHistory((previousHistory) =>
+        previousHistory.map((candidate) =>
+          candidate.id === updatedSession.id ? updatedSession : candidate,
+        ),
+      );
+      setActiveSession((previousSession) =>
+        previousSession?.id === updatedSession.id ? updatedSession : previousSession,
+      );
+      setFeedbackMessage(
+        updatedSession.isFavorite
+          ? "Seance ajoutee aux favoris."
+          : "Seance retiree des favoris.",
+      );
+    } catch (error) {
+      setFeedbackMessage(
+        formatRuntimeError(error, "Impossible de mettre a jour cette seance favorite."),
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function handleToggleFavoriteMeal() {
     if (!selectedMeal || !supabaseClient || !session?.user || !profile) {
       return;
@@ -1365,6 +1480,70 @@ export default function App() {
 
     return (
       <>
+        {latestSession ? (
+          <AnimatedSection delay={0}>
+            <Card variant="highlighted" style={styles.quickRestartCard}>
+              <Badge label="Reprendre" variant="primary" size="sm" />
+              <Text style={styles.quickRestartTitle}>Relancer ma derniere seance</Text>
+              <Text style={styles.quickRestartCopy}>
+                {latestSession.workout.sport} · {latestSession.workout.durationMin} min ·{" "}
+                {latestSession.workout.intensity}
+              </Text>
+              <View style={styles.quickRestartStats}>
+                <Text style={styles.quickRestartMeta}>
+                  {latestSession.recommendation.caloriesBurned} kcal estimees
+                </Text>
+                <Text style={styles.quickRestartMeta}>
+                  {latestSession.selectedMealBlendId
+                    ? mealNamesById[latestSession.selectedMealBlendId] ?? "Plat FEATNESS"
+                    : "Aucun plat choisi"}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.primaryCta, isBusy && styles.buttonDisabled]}
+                onPress={() => void handleReplaySession(latestSession, "Derniere seance")}
+                disabled={isBusy}
+              >
+                <Text style={styles.primaryCtaText}>Relancer cette seance</Text>
+              </Pressable>
+            </Card>
+          </AnimatedSection>
+        ) : null}
+
+        {favoriteSessions.length > 0 ? (
+          <AnimatedSection delay={40}>
+            <Card style={styles.favoriteSessionsCard}>
+              <Badge label="Favoris" variant="warning" size="sm" />
+              <Text style={styles.favoriteSessionsTitle}>Mes seances favorites</Text>
+              <View style={styles.favoriteSessionsList}>
+                {favoriteSessions.map((sessionItem) => (
+                  <Pressable
+                    key={sessionItem.id}
+                    style={[styles.favoriteSessionItem, isBusy && styles.buttonDisabled]}
+                    onPress={() => void handleReplaySession(sessionItem, "Seance favorite")}
+                    disabled={isBusy}
+                  >
+                    <View style={styles.favoriteSessionCopy}>
+                      <Text style={styles.favoriteSessionTitle}>
+                        {sessionItem.workout.sport} · {sessionItem.workout.goal}
+                      </Text>
+                      <Text style={styles.favoriteSessionMeta}>
+                        {sessionItem.workout.durationMin} min · {sessionItem.workout.intensity} ·{" "}
+                        {sessionItem.recommendation.caloriesBurned} kcal
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons
+                      name="arrow-top-right"
+                      size={18}
+                      color={theme.colors.gold}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </Card>
+          </AnimatedSection>
+        ) : null}
+
         <AnimatedSection delay={0}>
           <View style={styles.summaryBanner}>
             <View style={styles.summaryBannerRow}>
@@ -1595,7 +1774,12 @@ export default function App() {
 
       {history.length > 0 ? (
         <AnimatedSection delay={80}>
-          <HistoryCard sessions={history} mealNamesById={mealNamesById} />
+          <HistoryCard
+            sessions={history}
+            mealNamesById={mealNamesById}
+            onToggleFavorite={(sessionItem) => void handleToggleFavoriteSession(sessionItem)}
+            isBusy={isBusy}
+          />
         </AnimatedSection>
       ) : null}
     </>
@@ -1675,6 +1859,27 @@ export default function App() {
               </View>
             </View>
           </AnimatedSection>
+
+          {activeToken ? (
+            <AnimatedSection delay={15}>
+              <Pressable style={styles.activeTokenBanner} onPress={() => openScreen("qr")}>
+                <View style={styles.activeTokenBannerIcon}>
+                  <MaterialCommunityIcons name="qrcode-scan" size={18} color={theme.colors.ink} />
+                </View>
+                <View style={styles.activeTokenBannerCopy}>
+                  <Text style={styles.activeTokenBannerLabel}>QR code actif</Text>
+                  <Text style={styles.activeTokenBannerTitle}>
+                    {activeTokenMealName ?? "Repas FEATNESS"} · encore {activeTokenRemaining ?? "30 min"}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={22}
+                  color={theme.colors.ink}
+                />
+              </Pressable>
+            </AnimatedSection>
+          ) : null}
 
           {feedbackMessage ? (
             <AnimatedSection delay={40}>
@@ -2090,6 +2295,98 @@ const styles = StyleSheet.create({
   accountHint: {
     color: theme.colors.textMuted,
     lineHeight: 20,
+  },
+  activeTokenBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    borderWidth: 1,
+    borderColor: theme.colors.primaryDark,
+    ...mobileShadow,
+  },
+  activeTokenBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.24)",
+  },
+  activeTokenBannerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  activeTokenBannerLabel: {
+    color: "rgba(17,24,39,0.72)",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+    fontWeight: "700",
+  },
+  activeTokenBannerTitle: {
+    color: theme.colors.ink,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  quickRestartCard: {
+    gap: 10,
+  },
+  quickRestartTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  quickRestartCopy: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+  quickRestartStats: {
+    gap: 4,
+  },
+  quickRestartMeta: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
+  },
+  favoriteSessionsCard: {
+    gap: 12,
+  },
+  favoriteSessionsTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  favoriteSessionsList: {
+    gap: 10,
+  },
+  favoriteSessionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  favoriteSessionCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  favoriteSessionTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  favoriteSessionMeta: {
+    color: theme.colors.textMuted,
+    lineHeight: 18,
+    textTransform: "capitalize",
   },
   prerequisiteCard: {
     backgroundColor: theme.colors.surface,
