@@ -411,12 +411,16 @@ export async function createDispenseToken(
 ): Promise<DispenseTokenRecord> {
   const { data, error } = await client
     .from("dispense_tokens")
-    .insert({
-      user_id: userId,
-      session_id: sessionId,
-      status: "active",
-      expires_at: addMinutesToIso(new Date(), 30),
-    })
+    .upsert(
+      {
+        user_id: userId,
+        session_id: sessionId,
+        status: "active",
+        expires_at: addMinutesToIso(new Date(), 30),
+        consumed_at: null,
+      },
+      { onConflict: "session_id" },
+    )
     .select("*")
     .single();
 
