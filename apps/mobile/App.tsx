@@ -102,10 +102,10 @@ const SCREEN_META: Record<ScreenKey, ScreenMeta> = {
     accent: theme.colors.gold,
   },
   qr: {
-    eyebrow: "QR",
-    title: "Le QR reste secondaire",
+    eyebrow: "Recap",
+    title: "Recap rapide avant retrait",
     description:
-      "Le repas est deja choisi. Le QR ne sert qu'a finaliser plus tard sur la borne si necessaire.",
+      "Tu verifies simplement ta seance et ton plat. Le QR ne se genere qu'apres cette validation finale.",
     background: "#0a1318",
     panel: "#11212c",
     glow: "rgba(148,206,255,0.2)",
@@ -131,7 +131,7 @@ const TAB_ITEMS: Array<{
   { key: "home", label: "Home", icon: "view-dashboard-outline" },
   { key: "sessions", label: "Effort", icon: "run-fast" },
   { key: "meals", label: "Plat", icon: "silverware-fork-knife" },
-  { key: "qr", label: "QR", icon: "qrcode-scan" },
+  { key: "qr", label: "Recap", icon: "clipboard-text-outline" },
   { key: "profile", label: "Moi", icon: "account-circle-outline" },
 ];
 
@@ -436,7 +436,7 @@ export default function App() {
     }
 
     if (!activeToken) {
-      return "Ton repas est choisi. FEATNESS va maintenant te generer un QR a presenter a la borne.";
+      return "Ton repas est choisi. Passe au recap pour verifier puis generer le QR a presenter a la borne.";
     }
 
     return "Tout est pret : repas choisi, QR genere, tu peux presenter ton telephone a la borne.";
@@ -460,6 +460,10 @@ export default function App() {
   const latestSelectedMealName = (confirmedMealId && mealNamesById[confirmedMealId]) || null;
   const recentSessions = history.slice(0, 3);
   const mealSelectionsCount = history.filter((sessionItem) => Boolean(sessionItem.selectedMealBlendId)).length;
+  const activeSuggestion =
+    (activeSuggestionKey
+      ? sessionSuggestions.find((suggestion) => suggestion.key === activeSuggestionKey) ?? null
+      : null) ?? null;
 
   const screenMeta = SCREEN_META[currentScreen];
 
@@ -1002,14 +1006,9 @@ export default function App() {
         targetMeal.id,
       );
       await cancelActiveTokens(supabaseClient, session.user.id);
-      const nextToken = await createDispenseToken(
-        supabaseClient,
-        session.user.id,
-        updatedSession.id,
-      );
 
       setActiveSession(updatedSession);
-      setActiveToken(nextToken);
+      setActiveToken(null);
       setCurrentScreen("qr");
       scrollToTop();
       setHistory((previousHistory) =>
@@ -1018,7 +1017,7 @@ export default function App() {
         ),
       );
       setFeedbackMessage(
-        `${targetMeal.name} retenu. Le QR est genere, tu peux maintenant le presenter a la borne.`,
+        `${targetMeal.name} retenu. Verifie le recap puis genere le QR pour la borne.`,
       );
     } catch (error) {
       setFeedbackMessage(
@@ -1047,7 +1046,7 @@ export default function App() {
       setActiveToken(nextToken);
       setCurrentScreen("qr");
       scrollToTop();
-      setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant finaliser sur la borne si besoin.");
+      setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant le presenter a la borne.");
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de generer le QR.",
@@ -1310,7 +1309,9 @@ export default function App() {
             selectedMealId={selectedMealId}
             favoriteMealIds={profile?.favoriteMealIds ?? []}
             onSelectMeal={setSelectedMealId}
-            onQuickConfirmRecommended={() => void handleConfirmMealChoice(suggestedMeals[0]?.id ?? null)}
+            onQuickConfirmRecommended={() =>
+              void handleConfirmMealChoice(selectedMealId ?? suggestedMeals[0]?.id ?? null)
+            }
             isBusy={isBusy}
           />
         </AnimatedSection>
@@ -1351,21 +1352,62 @@ export default function App() {
     return (
       <>
         <AnimatedSection delay={0}>
-          <View style={styles.summaryBanner}>
+          <View style={[styles.summaryBanner, styles.summaryBannerNeutralStrong]}>
             <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Repas choisi</Text>
+              <Text style={styles.summaryBannerLabel}>Recap final</Text>
               <Text style={styles.summaryBannerValue} numberOfLines={2}>
                 {latestSelectedMealName ?? "Repas FEATNESS"}
               </Text>
             </View>
             <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Action</Text>
+              <Text style={styles.summaryBannerLabel}>Seance</Text>
               <Text style={styles.summaryBannerValue}>
-                {activeToken ? "A montrer a la borne" : "Generation du QR"}
+                {activeSuggestion?.title ??
+                  (activeSession
+                    ? `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
+                    : "Seance FEATNESS")}
               </Text>
             </View>
           </View>
         </AnimatedSection>
+        {!activeToken ? (
+          <AnimatedSection delay={60}>
+            <View style={styles.qrRecapCard}>
+              <Text style={styles.sectionEyebrow}>Validation finale</Text>
+              <Text style={styles.qrRecapTitle}>Tout est pret pour generer ton QR</Text>
+              <View style={styles.qrRecapRow}>
+                <View style={styles.qrRecapBlock}>
+                  <Text style={styles.qrRecapLabel}>Effort retenu</Text>
+                  <Text style={styles.qrRecapValue}>
+                    {activeSuggestion?.title ??
+                      (activeSession
+                        ? `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
+                        : "Seance FEATNESS")}
+                  </Text>
+                </View>
+                <View style={styles.qrRecapBlock}>
+                  <Text style={styles.qrRecapLabel}>Plat retenu</Text>
+                  <Text style={styles.qrRecapValue}>
+                    {latestSelectedMealName ?? "Repas FEATNESS"}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.qrRecapHint}>
+                Appuie une seule fois. Le QR sera ensuite affiche en plein ecran pour la borne.
+              </Text>
+              <Pressable
+                style={[styles.primaryCta, isBusy && styles.buttonDisabled]}
+                onPress={() => void handleGenerateQr()}
+                disabled={isBusy}
+              >
+                <Text style={styles.primaryCtaText}>
+                  {isBusy ? "Generation..." : "Generer mon QR maintenant"}
+                </Text>
+              </Pressable>
+            </View>
+          </AnimatedSection>
+        ) : null}
+        {activeToken ? (
         <AnimatedSection delay={80}>
           <ActiveTokenCard
             token={activeToken}
@@ -1376,6 +1418,7 @@ export default function App() {
             isBusy={isBusy}
           />
         </AnimatedSection>
+        ) : null}
       </>
     );
   };
@@ -1843,6 +1886,10 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.mintSoft,
     borderColor: "rgba(111,212,168,0.24)",
   },
+  summaryBannerNeutralStrong: {
+    backgroundColor: "rgba(148,206,255,0.08)",
+    borderColor: "rgba(148,206,255,0.24)",
+  },
   summaryBannerItem: {
     gap: 4,
   },
@@ -1857,6 +1904,52 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     lineHeight: 26,
+  },
+  qrRecapCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 12,
+    ...mobileShadow,
+  },
+  qrRecapTitle: {
+    color: theme.colors.text,
+    fontSize: 24,
+    fontWeight: "700",
+    lineHeight: 30,
+  },
+  qrRecapRow: {
+    gap: 10,
+  },
+  qrRecapBlock: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 4,
+  },
+  qrRecapLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+  qrRecapValue: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+    textTransform: "capitalize",
+  },
+  qrRecapHint: {
+    color: theme.colors.textSoft,
+    lineHeight: 21,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   homeRecapCard: {
     backgroundColor: theme.colors.surface,

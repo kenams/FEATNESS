@@ -59,7 +59,8 @@ export function SuggestedMealsCard({
     return null;
   }
 
-  const recommendedMeal = meals[0];
+  const selectedMeal = meals.find((meal) => meal.id === selectedMealId) ?? meals[0];
+  const visibleMeals = meals.filter((meal) => meal.id !== selectedMeal.id);
 
   return (
     <View style={styles.card}>
@@ -79,33 +80,33 @@ export function SuggestedMealsCard({
       <View style={styles.expressCard}>
         <View style={styles.expressHeader}>
           <View style={styles.expressCopy}>
-            <Text style={styles.expressEyebrow}>Choix express</Text>
-            <Text style={styles.expressTitle}>{recommendedMeal.name}</Text>
+            <Text style={styles.expressEyebrow}>Choix retenu</Text>
+            <Text style={styles.expressTitle}>{selectedMeal.name}</Text>
             <Text style={styles.expressDescription}>
-              Le meilleur compromis entre ta seance, le prix et la rapidite de preparation.
+              Ce plat est sorti de la liste pour devenir ton choix en cours. Tu peux encore revenir sur une alternative plus bas.
             </Text>
           </View>
           <View style={styles.expressPricePill}>
-            <Text style={styles.expressPriceText}>{formatCurrency(recommendedMeal.priceEur)}</Text>
+            <Text style={styles.expressPriceText}>{formatCurrency(selectedMeal.priceEur)}</Text>
           </View>
         </View>
 
         <View style={styles.expressTags}>
           <View style={styles.expressTag}>
             <Text style={styles.expressTagText}>
-              {GOAL_LABELS[recommendedMeal.targetGoal as GoalKey] ?? recommendedMeal.targetGoal}
+              {GOAL_LABELS[selectedMeal.targetGoal as GoalKey] ?? selectedMeal.targetGoal}
             </Text>
           </View>
           <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>{recommendedMeal.proteinG} g prot</Text>
+            <Text style={styles.expressTagText}>{selectedMeal.proteinG} g prot</Text>
           </View>
           <View style={styles.expressTag}>
-            <Text style={styles.expressTagText}>{recommendedMeal.calories} kcal</Text>
+            <Text style={styles.expressTagText}>{selectedMeal.calories} kcal</Text>
           </View>
           <View style={styles.expressTag}>
             <Text style={styles.expressTagText}>
-              {recommendedMeal.allergens.length > 0
-                ? `${recommendedMeal.allergens.length} allergenes`
+              {selectedMeal.allergens.length > 0
+                ? `${selectedMeal.allergens.length} allergenes`
                 : "Sans allergene majeur"}
             </Text>
           </View>
@@ -117,13 +118,13 @@ export function SuggestedMealsCard({
           disabled={isBusy}
         >
           <Text style={styles.expressButtonText}>
-            {isBusy ? "Validation..." : "Choisir l'option 1 et generer le QR"}
+            {isBusy ? "Validation..." : "Conserver ce plat et ouvrir le recap"}
           </Text>
         </Pressable>
       </View>
 
       <View style={styles.list}>
-        {meals.map((meal) => (
+        {visibleMeals.map((meal) => (
           <Pressable
             key={meal.id}
             style={[

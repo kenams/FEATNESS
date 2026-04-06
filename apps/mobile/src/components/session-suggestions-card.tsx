@@ -21,6 +21,12 @@ export function SessionSuggestionsCard({
     return null;
   }
 
+  const selectedSuggestion =
+    suggestions.find((suggestion) => suggestion.key === activeSuggestionKey) ?? null;
+  const visibleSuggestions = selectedSuggestion
+    ? suggestions.filter((suggestion) => suggestion.key !== selectedSuggestion.key)
+    : suggestions;
+
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Seances</Text>
@@ -29,8 +35,21 @@ export function SessionSuggestionsCard({
         Choisis une seance, puis laisse FEATNESS te proposer directement les plats les plus coherents.
       </Text>
 
+      {selectedSuggestion ? (
+        <View style={styles.selectedSummaryCard}>
+          <Text style={styles.selectedSummaryEyebrow}>Seance retenue</Text>
+          <Text style={styles.selectedSummaryTitle}>{selectedSuggestion.title}</Text>
+          <Text style={styles.selectedSummaryCopy}>
+            {selectedSuggestion.durationMin} min • {selectedSuggestion.sport} • {selectedSuggestion.goal}
+          </Text>
+          <View style={styles.selectedSummaryBadge}>
+            <Text style={styles.selectedSummaryBadgeText}>Prise en compte</Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.list}>
-        {suggestions.map((suggestion, index) => {
+        {visibleSuggestions.map((suggestion, index) => {
           const isSelected = activeSuggestionKey === suggestion.key;
 
           return (
@@ -116,6 +135,45 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+  },
+  selectedSummaryCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.28)",
+    backgroundColor: theme.colors.mintSoft,
+    padding: 16,
+    gap: 8,
+  },
+  selectedSummaryEyebrow: {
+    color: theme.colors.mint,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+    fontWeight: "700",
+  },
+  selectedSummaryTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  selectedSummaryCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+    textTransform: "capitalize",
+  },
+  selectedSummaryBadge: {
+    alignSelf: "flex-start",
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(111,212,168,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.32)",
+  },
+  selectedSummaryBadgeText: {
+    color: theme.colors.mint,
+    fontSize: 12,
+    fontWeight: "700",
   },
   list: {
     gap: 12,
