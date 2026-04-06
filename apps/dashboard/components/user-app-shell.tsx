@@ -854,13 +854,19 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                       key={suggestion.key}
                       className={`rounded-[24px] border p-5 ${
                         index === 0
-                          ? "border-emerald-300 bg-emerald-50"
+                          ? "border-featness-gold/40 bg-[#fff9ec]"
                           : "border-black/10 bg-[#f8faf9]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-featness-muted">
-                          Option {index + 1}
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            index === 0
+                              ? "bg-featness-gold/15 text-featness-gold"
+                              : "bg-white text-featness-muted"
+                          }`}
+                        >
+                          {index === 0 ? "Meilleur choix FEATNESS" : `Option ${index + 1}`}
                         </span>
                         <span className="rounded-full bg-white px-3 py-1 text-xs text-featness-muted">
                           {suggestion.durationMin} min
@@ -999,6 +1005,15 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                                     }`}
                                   >
                                     <div className="flex items-start justify-between gap-4">
+                                      <div
+                                        className={`mt-1 h-full min-h-24 w-1 rounded-full ${
+                                          section.recommended && meal.fitLabel === "ideal"
+                                            ? "bg-featness-gold"
+                                            : meal.fitLabel === "solide"
+                                              ? "bg-sky-400"
+                                              : "bg-rose-300"
+                                        }`}
+                                      />
                                       <div className="flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <span

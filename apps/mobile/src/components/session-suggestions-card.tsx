@@ -47,6 +47,17 @@ export function SessionSuggestionsCard({
       <Text style={styles.helperText}>
         Choisis un effort. FEATNESS recalculera ensuite les calories estimees et les plats les plus utiles.
       </Text>
+      <View style={styles.legendRow}>
+        <View style={[styles.legendPill, styles.legendPillGold]}>
+          <Text style={[styles.legendPillText, styles.legendPillTextGold]}>Meilleur choix</Text>
+        </View>
+        <View style={styles.legendPill}>
+          <Text style={styles.legendPillText}>3 seances max</Text>
+        </View>
+        <View style={styles.legendPill}>
+          <Text style={styles.legendPillText}>Decision rapide</Text>
+        </View>
+      </View>
 
       {selectedSuggestion ? (
         <View style={styles.selectedSummaryCard}>
@@ -59,6 +70,14 @@ export function SessionSuggestionsCard({
             <Text style={styles.selectedSummaryInsight}>
               {selectedSuggestion.estimatedCaloriesBurned} kcal estimees | {getEffortLabel(selectedSuggestion.effortCategory)}
             </Text>
+          ) : null}
+          {selectedSuggestion.focusTitle ? (
+            <View style={styles.selectedSummaryFocus}>
+              <Text style={styles.selectedSummaryFocusTitle}>{selectedSuggestion.focusTitle}</Text>
+              <Text style={styles.selectedSummaryFocusCopy} numberOfLines={2}>
+                {selectedSuggestion.focusCopy}
+              </Text>
+            </View>
           ) : null}
           <View style={styles.selectedSummaryBadge}>
             <Text style={styles.selectedSummaryBadgeText}>Prise en compte</Text>
@@ -79,6 +98,13 @@ export function SessionSuggestionsCard({
                 isSelected && styles.selectedCard,
               ]}
             >
+              <View
+                style={[
+                  styles.cardAccent,
+                  index === 0 ? styles.cardAccentFeatured : null,
+                  isSelected ? styles.cardAccentSelected : null,
+                ]}
+              />
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
                   <View style={styles.rankPill}>
@@ -179,6 +205,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  legendPill: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  legendPillGold: {
+    backgroundColor: theme.colors.goldSoft,
+    borderColor: theme.colors.borderStrong,
+  },
+  legendPillText: {
+    color: theme.colors.textSoft,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  legendPillTextGold: {
+    color: "#f1d893",
+  },
   selectedSummaryCard: {
     borderRadius: 22,
     borderWidth: 1,
@@ -186,6 +237,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.mintSoft,
     padding: 16,
     gap: 8,
+  },
+  selectedSummaryFocus: {
+    borderRadius: 16,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(111,212,168,0.18)",
+    gap: 4,
+  },
+  selectedSummaryFocusTitle: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  selectedSummaryFocusCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 18,
   },
   selectedSummaryEyebrow: {
     color: theme.colors.mint,
@@ -233,6 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceMuted,
     padding: 16,
     gap: 10,
+    overflow: "hidden",
   },
   featuredCard: {
     borderColor: theme.colors.borderStrong,
@@ -241,6 +309,21 @@ const styles = StyleSheet.create({
   selectedCard: {
     borderColor: "rgba(111,212,168,0.28)",
     backgroundColor: theme.colors.mintSoft,
+  },
+  cardAccent: {
+    position: "absolute",
+    left: 0,
+    top: 14,
+    bottom: 14,
+    width: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  cardAccentFeatured: {
+    backgroundColor: theme.colors.gold,
+  },
+  cardAccentSelected: {
+    backgroundColor: theme.colors.mint,
   },
   header: {
     flexDirection: "row",

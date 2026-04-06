@@ -131,6 +131,21 @@ function getFitLabelMeta(label: SuggestedMeal["fitLabel"]) {
   }
 }
 
+function getMealRailStyle(
+  fitLabel: SuggestedMeal["fitLabel"],
+  isRecommended: boolean,
+) {
+  if (isRecommended && fitLabel === "ideal") {
+    return styles.listRailIdeal;
+  }
+
+  if (fitLabel === "solide") {
+    return styles.listRailSolide;
+  }
+
+  return styles.listRailLeger;
+}
+
 function groupMealsByEffort(meals: SuggestedMeal[]) {
   return {
     light: meals.filter((meal) => meal.effortCategory === "light"),
@@ -204,6 +219,11 @@ export function SuggestedMealsCard({
       <Text style={styles.helperText}>
         Vert = FEATNESS recommande pour ta seance. Rouge = disponible a la borne mais moins prioritaire.
       </Text>
+      <View style={styles.legendRow}>
+        <FitPill fitLabel="ideal" />
+        <FitPill fitLabel="solide" />
+        <FitPill fitLabel="leger" />
+      </View>
 
       <View style={styles.sessionSummaryCard}>
         <Text style={styles.sessionSummaryEyebrow}>Resume de ta seance</Text>
@@ -246,9 +266,9 @@ export function SuggestedMealsCard({
           <Text style={styles.fastReasonTitle}>Pourquoi FEATNESS le pousse</Text>
           <Text style={styles.fastReasonCopy}>{selectedMeal.fitReason}</Text>
           {selectedMeal.fitChips.length > 0 ? (
-            <View style={styles.chipList}>
-              {selectedMeal.fitChips.map((chip) => (
-                <View key={chip} style={styles.chip}>
+          <View style={styles.chipList}>
+            {selectedMeal.fitChips.map((chip) => (
+              <View key={chip} style={styles.chip}>
                   <Text style={styles.chipText}>{chip}</Text>
                 </View>
               ))}
@@ -462,6 +482,7 @@ function MealListItem({
       ]}
       onPress={onPress}
     >
+      <View style={[styles.listRail, getMealRailStyle(meal.fitLabel, isRecommended)]} />
       <MealThumb meal={meal} />
       <View style={styles.listBody}>
         <View style={styles.listHeader}>
@@ -595,6 +616,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+  },
+  legendRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   sessionSummaryCard: {
     borderRadius: 18,
@@ -994,6 +1020,7 @@ const styles = StyleSheet.create({
     gap: 10,
     flexDirection: "row",
     alignItems: "stretch",
+    overflow: "hidden",
   },
   listCardRecommended: {
     backgroundColor: "rgba(111,212,168,0.08)",
@@ -1005,6 +1032,20 @@ const styles = StyleSheet.create({
   },
   listCardSelected: {
     borderColor: theme.colors.gold,
+  },
+  listRail: {
+    width: 4,
+    borderRadius: 999,
+    alignSelf: "stretch",
+  },
+  listRailIdeal: {
+    backgroundColor: theme.colors.gold,
+  },
+  listRailSolide: {
+    backgroundColor: "#94ceff",
+  },
+  listRailLeger: {
+    backgroundColor: theme.colors.danger,
   },
   listBody: {
     flex: 1,
