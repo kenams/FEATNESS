@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { Session } from "@supabase/supabase-js";
 
 import {
@@ -122,6 +123,44 @@ const SCREEN_META: Record<ScreenKey, ScreenMeta> = {
   },
 };
 
+const TAB_ITEMS: Array<{
+  key: ScreenKey;
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}> = [
+  { key: "home", label: "Accueil", icon: "view-dashboard-outline" },
+  { key: "sessions", label: "Seances", icon: "run-fast" },
+  { key: "meals", label: "Plats", icon: "silverware-fork-knife" },
+  { key: "qr", label: "QR", icon: "qrcode-scan" },
+  { key: "profile", label: "Profil", icon: "account-circle-outline" },
+];
+
+const HOME_PROMISES: Array<{
+  key: string;
+  title: string;
+  copy: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}> = [
+  {
+    key: "health",
+    title: "Fiche sante minimale",
+    copy: "Age, taille, poids et objectif suffisent pour demarrer.",
+    icon: "heart-pulse",
+  },
+  {
+    key: "session",
+    title: "Seance suggeree",
+    copy: "FEATNESS propose trois options directement exploitables.",
+    icon: "lightning-bolt-outline",
+  },
+  {
+    key: "meal",
+    title: "Plat choisi vite",
+    copy: "Le repas arrive avant le QR, pas apres.",
+    icon: "food-apple-outline",
+  },
+];
+
 function buildSuggestedMeals(
   meals: DrinkBlendRecord[],
   goal: GoalKey,
@@ -240,6 +279,8 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const screenTranslateY = useRef(new Animated.Value(0)).current;
 
   const supabaseEnabled = isMobileSupabaseConfigured();
   const supabaseClient = useMemo(() => getMobileSupabaseClient(), []);
@@ -393,6 +434,26 @@ export default function App() {
     null;
 
   const screenMeta = SCREEN_META[currentScreen];
+
+  useEffect(() => {
+    screenOpacity.setValue(0);
+    screenTranslateY.setValue(18);
+
+    Animated.parallel([
+      Animated.timing(screenOpacity, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(screenTranslateY, {
+        toValue: 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [currentScreen, screenOpacity, screenTranslateY]);
 
   useEffect(() => {
     if (!supabaseClient) {
@@ -1014,6 +1075,24 @@ export default function App() {
         </AnimatedSection>
       )}
 
+      <AnimatedSection delay={150}>
+        <View style={styles.premiumStrip}>
+          {HOME_PROMISES.map((promise) => (
+            <View key={promise.key} style={styles.premiumCard}>
+              <View style={styles.premiumIconWrap}>
+                <MaterialCommunityIcons
+                  name={promise.icon}
+                  size={20}
+                  color={theme.colors.gold}
+                />
+              </View>
+              <Text style={styles.premiumTitle}>{promise.title}</Text>
+              <Text style={styles.premiumCopy}>{promise.copy}</Text>
+            </View>
+          ))}
+        </View>
+      </AnimatedSection>
+
       {session?.user ? (
         <AnimatedSection delay={170}>
           <View style={styles.accountCard}>
@@ -1278,19 +1357,20 @@ export default function App() {
             </AnimatedSection>
           ) : null}
 
-          {renderCurrentScreen()}
+          <Animated.View
+            style={{
+              opacity: screenOpacity,
+              transform: [{ translateY: screenTranslateY }],
+            }}
+          >
+            {renderCurrentScreen()}
+          </Animated.View>
         </ScrollView>
 
         {session?.user ? (
           <View style={styles.tabBarWrap}>
             <View style={styles.tabBar}>
-              {[
-                { key: "home" as ScreenKey, label: "Accueil" },
-                { key: "sessions" as ScreenKey, label: "Seances" },
-                { key: "meals" as ScreenKey, label: "Plats" },
-                { key: "qr" as ScreenKey, label: "QR" },
-                { key: "profile" as ScreenKey, label: "Profil" },
-              ].map((tab) => {
+              {TAB_ITEMS.map((tab) => {
                 const enabled = canOpenScreen(tab.key);
                 const active = currentScreen === tab.key;
 
@@ -1305,6 +1385,17 @@ export default function App() {
                     onPress={() => openScreen(tab.key)}
                     disabled={!enabled}
                   >
+                    <MaterialCommunityIcons
+                      name={tab.icon}
+                      size={18}
+                      color={
+                        active
+                          ? theme.colors.ink
+                          : !enabled
+                            ? theme.colors.textMuted
+                            : theme.colors.textSoft
+                      }
+                    />
                     <Text
                       style={[
                         styles.tabButtonText,
@@ -1509,6 +1600,37 @@ const styles = StyleSheet.create({
   summaryGrid: {
     gap: 12,
   },
+  premiumStrip: {
+    gap: 12,
+  },
+  premiumCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 8,
+    ...mobileShadow,
+  },
+  premiumIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  premiumTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  premiumCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+  },
   summaryCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.xl,
@@ -1615,8 +1737,11 @@ const styles = StyleSheet.create({
   tabButton: {
     flex: 1,
     borderRadius: theme.radius.lg,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
   },
   tabButtonActive: {
     backgroundColor: theme.colors.gold,
