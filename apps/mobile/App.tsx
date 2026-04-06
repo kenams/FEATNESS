@@ -279,6 +279,7 @@ export default function App() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenKey>("home");
+  const scrollRef = useRef<ScrollView | null>(null);
   const screenOpacity = useRef(new Animated.Value(1)).current;
   const screenTranslateY = useRef(new Animated.Value(0)).current;
 
@@ -321,6 +322,21 @@ export default function App() {
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const confirmedMealId = activeSession?.selectedMealBlendId ?? null;
   const hasSelectedMeal = Boolean(confirmedMealId);
+  const activeSuggestionKey = useMemo(() => {
+    if (!activeSession) {
+      return null;
+    }
+
+    const matchingSuggestion = sessionSuggestions.find(
+      (suggestion) =>
+        suggestion.sport === activeSession.workout.sport &&
+        suggestion.intensity === activeSession.workout.intensity &&
+        suggestion.goal === activeSession.workout.goal &&
+        suggestion.durationMin === activeSession.workout.durationMin,
+    );
+
+    return matchingSuggestion?.key ?? null;
+  }, [activeSession, sessionSuggestions]);
   const feedbackTone = getFeedbackTone(feedbackMessage);
   const recommendedScreen = useMemo(
     () =>
@@ -430,10 +446,17 @@ export default function App() {
   );
 
   const latestSelectedMealName = (confirmedMealId && mealNamesById[confirmedMealId]) || null;
+  const recentSessions = history.slice(0, 3);
+  const mealSelectionsCount = history.filter((sessionItem) => Boolean(sessionItem.selectedMealBlendId)).length;
 
   const screenMeta = SCREEN_META[currentScreen];
 
+  function scrollToTop(animated = true) {
+    scrollRef.current?.scrollTo({ y: 0, animated });
+  }
+
   useEffect(() => {
+    scrollToTop();
     screenOpacity.setValue(0);
     screenTranslateY.setValue(18);
 
@@ -489,6 +512,7 @@ export default function App() {
       setAvailableMeals([]);
       setSelectedMealId(null);
       setCurrentScreen("home");
+      scrollToTop(false);
       return;
     }
 
@@ -524,6 +548,8 @@ export default function App() {
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
         setActiveSession(nextActiveSession);
         setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
+        setCurrentScreen("home");
+        scrollToTop(false);
       } catch (error) {
         if (!cancelled) {
           setFeedbackMessage(
@@ -754,6 +780,7 @@ export default function App() {
     setIsBusy(false);
     if (!error) {
       setCurrentScreen("home");
+      scrollToTop();
     }
     setFeedbackMessage(
       error ? error.message : "Connexion reussie. Tu peux maintenant avancer ecran par ecran.",
@@ -779,6 +806,7 @@ export default function App() {
     setIsBusy(false);
     if (!error) {
       setCurrentScreen("home");
+      scrollToTop();
     }
     setFeedbackMessage(
       error
@@ -808,6 +836,7 @@ export default function App() {
     setIsBusy(false);
     if (!error) {
       setCurrentScreen("home");
+      scrollToTop();
     }
     setFeedbackMessage(
       error ? error.message : "Compte test charge. Le parcours FEATNESS est pret a etre joue.",
@@ -826,6 +855,7 @@ export default function App() {
     const { error } = await supabaseClient.auth.signOut();
     setIsBusy(false);
     setCurrentScreen("home");
+    scrollToTop();
     setFeedbackMessage(error ? error.message : "Session fermee.");
   }
 
@@ -856,6 +886,7 @@ export default function App() {
       setProfile(nextProfile);
       setWeightKg(String(nextProfile.weightKg ?? weightKg));
       setCurrentScreen("sessions");
+      scrollToTop();
       setFeedbackMessage("Profil sante FEATNESS sauvegarde. Passe maintenant aux seances.");
     } catch (error) {
       setFeedbackMessage(
@@ -898,6 +929,7 @@ export default function App() {
         `${suggestion.title} lancee. Tu arrives maintenant directement sur les plats recommandes.`,
       );
       setCurrentScreen("meals");
+      scrollToTop();
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible de lancer cette seance.",
@@ -956,6 +988,7 @@ export default function App() {
       setActiveSession(updatedSession);
       setActiveToken(null);
       setCurrentScreen("qr");
+      scrollToTop();
       setHistory((previousHistory) =>
         previousHistory.map((sessionItem) =>
           sessionItem.id === updatedSession.id ? updatedSession : sessionItem,
@@ -990,6 +1023,7 @@ export default function App() {
       );
       setActiveToken(nextToken);
       setCurrentScreen("qr");
+      scrollToTop();
       setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant finaliser sur la borne si besoin.");
     } catch (error) {
       setFeedbackMessage(
@@ -1068,9 +1102,45 @@ export default function App() {
                 {latestSelectedMealName ?? "Aucun pour l'instant"}
               </Text>
             </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Consommations</Text>
+              <Text style={styles.summaryValue}>{mealSelectionsCount}</Text>
+            </View>
           </View>
         </AnimatedSection>
       )}
+
+      {session?.user ? (
+        <AnimatedSection delay={140}>
+          <View style={styles.homeRecapCard}>
+            <Text style={styles.sectionEyebrow}>Resume recent</Text>
+            <Text style={styles.homeRecapTitle}>Tes dernieres seances et plats</Text>
+            {recentSessions.length > 0 ? (
+              <View style={styles.recapList}>
+                {recentSessions.map((sessionItem) => (
+                  <View key={sessionItem.id} style={styles.recapItem}>
+                    <View style={styles.recapPrimary}>
+                      <Text style={styles.recapTitle}>
+                        {sessionItem.workout.sport} · {sessionItem.workout.goal}
+                      </Text>
+                      <Text style={styles.recapMeta}>
+                        {sessionItem.selectedMealBlendId
+                          ? mealNamesById[sessionItem.selectedMealBlendId] ?? "Plat FEATNESS"
+                          : "Aucun plat valide"}
+                      </Text>
+                    </View>
+                    <Text style={styles.recapDuration}>{sessionItem.workout.durationMin} min</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.homeRecapEmpty}>
+                Aucune seance pour l'instant. Commence par ton profil puis choisis une seance.
+              </Text>
+            )}
+          </View>
+        </AnimatedSection>
+      ) : null}
 
       <AnimatedSection delay={150}>
         <View style={styles.premiumStrip}>
@@ -1146,6 +1216,7 @@ export default function App() {
             suggestions={sessionSuggestions}
             onStartSuggestion={(suggestion) => void handleStartSuggestedSession(suggestion)}
             isBusy={isBusy}
+            activeSuggestionKey={activeSuggestionKey}
           />
         </AnimatedSection>
       </>
@@ -1172,6 +1243,23 @@ export default function App() {
     return (
       <>
         <AnimatedSection delay={0}>
+          <View style={[styles.summaryBanner, styles.summaryBannerSuccess]}>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>Seance prise en compte</Text>
+              <Text style={styles.summaryBannerValue}>
+                {activeSuggestionKey
+                  ? sessionSuggestions.find((suggestion) => suggestion.key === activeSuggestionKey)?.title ??
+                    `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`
+                  : `${activeSession.workout.sport} ${activeSession.workout.durationMin} min`}
+              </Text>
+            </View>
+            <View style={styles.summaryBannerItem}>
+              <Text style={styles.summaryBannerLabel}>Etat</Text>
+              <Text style={styles.summaryBannerValue}>OK, passe au plat</Text>
+            </View>
+          </View>
+        </AnimatedSection>
+        <AnimatedSection delay={60}>
           <SuggestedMealsCard
             meals={suggestedMeals}
             goal={activeSession.workout.goal}
@@ -1180,15 +1268,17 @@ export default function App() {
             onSelectMeal={setSelectedMealId}
           />
         </AnimatedSection>
-        <AnimatedSection delay={80}>
+        <AnimatedSection delay={120}>
           <MealDetailCard
             meal={selectedMeal}
             goal={activeSession.workout.goal}
             isFavorite={
               selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false
             }
+            isConfirmed={Boolean(selectedMeal && selectedMeal.id === confirmedMealId)}
             onToggleFavorite={() => void handleToggleFavoriteMeal()}
             onConfirmChoice={() => void handleConfirmMealChoice()}
+            isBusy={isBusy}
           />
         </AnimatedSection>
       </>
@@ -1259,6 +1349,7 @@ export default function App() {
           onSave={() => void handleSaveProfile()}
           isBusy={isBusy}
           isComplete={Boolean(profile?.onboardingCompleted)}
+          isValidated={Boolean(profile?.onboardingCompleted)}
         />
       </AnimatedSection>
 
@@ -1291,6 +1382,7 @@ export default function App() {
       <StatusBar style="light" />
       <View style={styles.shell}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
         >
@@ -1700,6 +1792,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     gap: 10,
   },
+  summaryBannerSuccess: {
+    backgroundColor: theme.colors.mintSoft,
+    borderColor: "rgba(111,212,168,0.24)",
+  },
   summaryBannerItem: {
     gap: 4,
   },
@@ -1714,6 +1810,56 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     lineHeight: 26,
+  },
+  homeRecapCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 12,
+    ...mobileShadow,
+  },
+  homeRecapTitle: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  recapList: {
+    gap: 10,
+  },
+  recapItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  recapPrimary: {
+    flex: 1,
+    gap: 4,
+  },
+  recapTitle: {
+    color: theme.colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  recapMeta: {
+    color: theme.colors.textMuted,
+    lineHeight: 18,
+  },
+  recapDuration: {
+    color: theme.colors.gold,
+    fontWeight: "700",
+  },
+  homeRecapEmpty: {
+    color: theme.colors.textMuted,
+    lineHeight: 20,
   },
   tabBarWrap: {
     position: "absolute",

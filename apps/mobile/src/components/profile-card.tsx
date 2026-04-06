@@ -24,6 +24,7 @@ type ProfileCardProps = {
   onSave: () => void;
   isBusy: boolean;
   isComplete: boolean;
+  isValidated: boolean;
 };
 
 export function ProfileCard({
@@ -39,6 +40,7 @@ export function ProfileCard({
   onSave,
   isBusy,
   isComplete,
+  isValidated,
 }: ProfileCardProps) {
   return (
     <View style={styles.card}>
@@ -116,12 +118,16 @@ export function ProfileCard({
       </View>
 
       <Pressable
-        style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
+        style={[
+          styles.primaryButton,
+          isValidated && styles.primaryButtonSuccess,
+          isBusy && styles.buttonDisabled,
+        ]}
         onPress={onSave}
         disabled={isBusy}
       >
         <Text style={styles.primaryButtonText}>
-          {isBusy ? "Enregistrement..." : "Valider mon profil"}
+          {isBusy ? "Enregistrement..." : isValidated ? "Profil valide" : "Valider mon profil"}
         </Text>
       </Pressable>
     </View>
@@ -219,6 +225,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 13,
+  },
+  primaryButtonSuccess: {
+    backgroundColor: theme.colors.mint,
   },
   primaryButtonText: {
     color: theme.colors.ink,

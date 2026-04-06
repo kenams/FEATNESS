@@ -8,12 +8,14 @@ type SessionSuggestionsCardProps = {
   suggestions: SessionSuggestion[];
   onStartSuggestion: (suggestion: SessionSuggestion) => void;
   isBusy: boolean;
+  activeSuggestionKey: string | null;
 };
 
 export function SessionSuggestionsCard({
   suggestions,
   onStartSuggestion,
   isBusy,
+  activeSuggestionKey,
 }: SessionSuggestionsCardProps) {
   if (suggestions.length === 0) {
     return null;
@@ -28,46 +30,62 @@ export function SessionSuggestionsCard({
       </Text>
 
       <View style={styles.list}>
-        {suggestions.map((suggestion, index) => (
-          <View
-            key={suggestion.key}
-            style={[styles.suggestionCard, index === 0 && styles.featuredCard]}
-          >
-            <View style={styles.header}>
-              <View style={styles.rankPill}>
-                <Text style={styles.rankPillText}>Option {index + 1}</Text>
-              </View>
-              <View style={styles.metaPill}>
-                <Text style={styles.metaPillText}>
-                  {suggestion.durationMin} min | {suggestion.intensity}
-                </Text>
-              </View>
-            </View>
+        {suggestions.map((suggestion, index) => {
+          const isSelected = activeSuggestionKey === suggestion.key;
 
-            <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
-            <Text style={styles.suggestionDescription}>{suggestion.description}</Text>
-            <Text style={styles.whyText}>{suggestion.why}</Text>
-
-            <View style={styles.tags}>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{suggestion.sport}</Text>
-              </View>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>{suggestion.goal}</Text>
-              </View>
-            </View>
-
-            <Pressable
-              style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
-              onPress={() => onStartSuggestion(suggestion)}
-              disabled={isBusy}
+          return (
+            <View
+              key={suggestion.key}
+              style={[
+                styles.suggestionCard,
+                index === 0 && styles.featuredCard,
+                isSelected && styles.selectedCard,
+              ]}
             >
-              <Text style={styles.primaryButtonText}>
-                {isBusy ? "Preparation..." : "Choisir cette seance"}
-              </Text>
-            </Pressable>
-          </View>
-        ))}
+              <View style={styles.header}>
+                <View style={styles.rankPill}>
+                  <Text style={styles.rankPillText}>Option {index + 1}</Text>
+                </View>
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>
+                    {suggestion.durationMin} min | {suggestion.intensity}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
+              <Text style={styles.suggestionDescription}>{suggestion.description}</Text>
+              <Text style={styles.whyText}>{suggestion.why}</Text>
+
+              <View style={styles.tags}>
+                <View style={styles.tag}>
+                  <Text style={styles.tagText}>{suggestion.sport}</Text>
+                </View>
+                <View style={styles.tag}>
+                  <Text style={styles.tagText}>{suggestion.goal}</Text>
+                </View>
+              </View>
+
+              <Pressable
+                style={[
+                  styles.primaryButton,
+                  isSelected && styles.primaryButtonSuccess,
+                  isBusy && styles.buttonDisabled,
+                ]}
+                onPress={() => onStartSuggestion(suggestion)}
+                disabled={isBusy}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {isBusy
+                    ? "Preparation..."
+                    : isSelected
+                      ? "Seance prise en compte"
+                      : "Choisir cette seance"}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -113,6 +131,10 @@ const styles = StyleSheet.create({
   featuredCard: {
     borderColor: theme.colors.borderStrong,
     backgroundColor: "#132521",
+  },
+  selectedCard: {
+    borderColor: "rgba(111,212,168,0.28)",
+    backgroundColor: theme.colors.mintSoft,
   },
   header: {
     flexDirection: "row",
@@ -179,6 +201,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 13,
+  },
+  primaryButtonSuccess: {
+    backgroundColor: theme.colors.mint,
   },
   primaryButtonText: {
     color: theme.colors.ink,

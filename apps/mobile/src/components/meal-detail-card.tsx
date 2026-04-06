@@ -9,8 +9,10 @@ type MealDetailCardProps = {
   meal: DrinkBlendRecord | null;
   goal: GoalKey;
   isFavorite: boolean;
+  isConfirmed: boolean;
   onToggleFavorite: () => void;
   onConfirmChoice: () => void;
+  isBusy: boolean;
 };
 
 const GOAL_COPY: Record<GoalKey, string> = {
@@ -54,8 +56,10 @@ export function MealDetailCard({
   meal,
   goal,
   isFavorite,
+  isConfirmed,
   onToggleFavorite,
   onConfirmChoice,
+  isBusy,
 }: MealDetailCardProps) {
   if (!meal) {
     return null;
@@ -106,8 +110,18 @@ export function MealDetailCard({
             {isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
           </Text>
         </Pressable>
-        <Pressable style={styles.primaryButton} onPress={onConfirmChoice}>
-          <Text style={styles.primaryButtonText}>Valider ce plat</Text>
+        <Pressable
+          style={[
+            styles.primaryButton,
+            isConfirmed && styles.primaryButtonSuccess,
+            isBusy && styles.buttonDisabled,
+          ]}
+          onPress={onConfirmChoice}
+          disabled={isBusy}
+        >
+          <Text style={styles.primaryButtonText}>
+            {isBusy ? "Validation..." : isConfirmed ? "Plat valide" : "Valider ce plat"}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -263,10 +277,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
   },
+  primaryButtonSuccess: {
+    backgroundColor: theme.colors.mint,
+  },
   primaryButtonText: {
     color: theme.colors.ink,
     fontWeight: "700",
     textAlign: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   secondaryButton: {
     borderRadius: theme.radius.pill,
