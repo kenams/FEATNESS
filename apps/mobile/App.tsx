@@ -270,6 +270,22 @@ function formatTokenRemaining(expiresAt: string, nowMs = Date.now()): string {
   return `${remainingMinutes} min`;
 }
 
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const message =
+    "message" in error && typeof error.message === "string"
+      ? error.message.toLowerCase()
+      : "";
+
+  return (
+    message.includes("invalid refresh token") ||
+    message.includes("refresh token not found")
+  );
+}
+
 function formatRuntimeError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -771,17 +787,33 @@ function AppShell() {
       return;
     }
 
+    const client = supabaseClient;
     let mounted = true;
 
-    supabaseClient.auth.getSession().then(({ data }) => {
+    async function bootstrapSession() {
+      const { data, error } = await client.auth.getSession();
+
+      if (error && isInvalidRefreshTokenError(error)) {
+        await client.auth.signOut({ scope: "local" });
+
+        if (mounted) {
+          setSession(null);
+          setFeedbackMessage("Session expiree. Reconnecte-toi.");
+        }
+
+        return;
+      }
+
       if (mounted) {
         setSession(data.session);
       }
-    });
+    }
+
+    void bootstrapSession();
 
     const {
       data: { subscription },
-    } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+    } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
     });
 
