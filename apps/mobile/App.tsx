@@ -282,6 +282,25 @@ function getRecommendedScreen(
   return "home";
 }
 
+function resolveActiveSession(
+  sessions: WorkoutSessionRecord[],
+  token: DispenseTokenRecord | null,
+  currentSessionId?: string | null,
+) {
+  if (token && !isExpired(token.expiresAt)) {
+    return sessions.find((sessionItem) => sessionItem.id === token.sessionId) ?? sessions[0] ?? null;
+  }
+
+  if (currentSessionId) {
+    const currentSession = sessions.find((sessionItem) => sessionItem.id === currentSessionId) ?? null;
+    if (currentSession) {
+      return currentSession;
+    }
+  }
+
+  return sessions[0] ?? null;
+}
+
 function formatPrimaryObjectiveLabel(value: PrimaryObjectiveKey): string {
   switch (value) {
     case "lose_weight":
@@ -618,10 +637,8 @@ export default function App() {
           return;
         }
 
-        const nextActiveSession =
-          nextToken && !isExpired(nextToken.expiresAt)
-            ? nextHistory.find((sessionItem) => sessionItem.id === nextToken.sessionId) ?? null
-            : nextHistory[0] ?? null;
+        const liveToken = nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null;
+        const nextActiveSession = resolveActiveSession(nextHistory, liveToken);
 
         setProfile(nextProfile);
         setAge(nextProfile?.age ? String(nextProfile.age) : "");
@@ -630,11 +647,11 @@ export default function App() {
         setPrimaryObjective(nextProfile?.primaryObjective ?? "lose_weight");
         setHistory(nextHistory);
         setAvailableMeals(nextMeals);
-        setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
-      setActiveSession(nextActiveSession);
-      setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
-      setCurrentScreen("home");
-      scrollToTop(false);
+        setActiveToken(liveToken);
+        setActiveSession(nextActiveSession);
+        setSelectedMealId(nextActiveSession?.selectedMealBlendId ?? null);
+        setCurrentScreen("home");
+        scrollToTop(false);
       } catch (error) {
         if (!cancelled) {
           setFeedbackMessage(
@@ -660,9 +677,7 @@ export default function App() {
           const nextHistory = await fetchWorkoutHistory(mobileClient, authenticatedUser.id);
           setHistory(nextHistory);
           setActiveSession((previousSession) =>
-            previousSession
-              ? nextHistory.find((item) => item.id === previousSession.id) ?? previousSession
-              : previousSession,
+            resolveActiveSession(nextHistory, activeToken, previousSession?.id),
           );
         },
       )
@@ -691,6 +706,17 @@ export default function App() {
       void mobileClient.removeChannel(tokensChannel);
     };
   }, [session?.user?.id, supabaseClient]);
+
+  useEffect(() => {
+    if (history.length === 0) {
+      setActiveSession(null);
+      return;
+    }
+
+    setActiveSession((previousSession) =>
+      resolveActiveSession(history, activeToken, previousSession?.id),
+    );
+  }, [history, activeToken]);
 
   useEffect(() => {
     if (!activeSession || availableMeals.length === 0) {

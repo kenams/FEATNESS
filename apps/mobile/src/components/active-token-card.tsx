@@ -92,6 +92,7 @@ export function ActiveTokenCard({
   }, [pulse, token]);
 
   const remainingLabel = token ? formatRemaining(token.expiresAt, now) : null;
+  const isExpiredToken = token ? new Date(token.expiresAt).getTime() <= now : false;
 
   const pulseScale = pulse.interpolate({
     inputRange: [0, 1],
@@ -117,7 +118,14 @@ export function ActiveTokenCard({
 
       {token ? (
         <View style={styles.tokenBlock}>
-          <Text style={styles.tokenHeadline}>QR actif</Text>
+          <View style={styles.readyBanner}>
+            <Text style={styles.readyBannerLabel}>
+              {isExpiredToken ? "QR a regenerer" : "Pret a scanner"}
+            </Text>
+            <Text style={styles.readyBannerValue}>
+              {remainingLabel ?? formatRemaining(token.expiresAt)}
+            </Text>
+          </View>
           {mealName ? (
             <View style={styles.mealPill}>
               <Text style={styles.mealPillLabel}>Plat</Text>
@@ -144,7 +152,9 @@ export function ActiveTokenCard({
               <Text style={styles.statusChipText}>Token {token.status}</Text>
             </View>
             <View style={styles.statusChip}>
-              <Text style={styles.statusChipText}>{remainingLabel ?? formatRemaining(token.expiresAt)}</Text>
+              <Text style={styles.statusChipText}>
+                {session ? `${session.workout.durationMin} min / ${session.workout.goal}` : "Session active"}
+              </Text>
             </View>
           </View>
           <Text style={styles.scanInstruction}>Approche ton telephone du lecteur QR de la borne.</Text>
@@ -270,9 +280,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(201,166,70,0.18)",
   },
-  tokenHeadline: {
+  readyBanner: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: "rgba(201,166,70,0.24)",
+    alignItems: "center",
+    gap: 4,
+  },
+  readyBannerLabel: {
+    color: "#f1d893",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+    fontWeight: "700",
+  },
+  readyBannerValue: {
     color: theme.colors.text,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
   },
   mealPill: {

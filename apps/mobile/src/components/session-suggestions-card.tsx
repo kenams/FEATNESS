@@ -45,7 +45,7 @@ export function SessionSuggestionsCard({
       <Text style={styles.eyebrow}>Seances</Text>
       <Text style={styles.cardTitle}>Seances conseillees pour atteindre ton objectif</Text>
       <Text style={styles.helperText}>
-        Choisis une seance, puis laisse FEATNESS te proposer directement les plats les plus coherents.
+        Choisis un effort. FEATNESS recalculera ensuite les calories estimees et les plats les plus utiles.
       </Text>
 
       {selectedSuggestion ? (
@@ -80,24 +80,32 @@ export function SessionSuggestionsCard({
               ]}
             >
               <View style={styles.header}>
-                <View style={styles.rankPill}>
-                  <Text style={styles.rankPillText}>Option {index + 1}</Text>
+                <View style={styles.headerLeft}>
+                  <View style={styles.rankPill}>
+                    <Text style={styles.rankPillText}>
+                      {index === 0 ? "Meilleur choix" : `Option ${index + 1}`}
+                    </Text>
+                  </View>
+                  <View style={styles.metaPill}>
+                    <Text style={styles.metaPillText}>
+                      {suggestion.durationMin} min | {suggestion.intensity}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>
-                    {suggestion.durationMin} min | {suggestion.intensity}
-                  </Text>
-                </View>
+                {suggestion.estimatedCaloriesBurned ? (
+                  <Text style={styles.kcalText}>{suggestion.estimatedCaloriesBurned} kcal</Text>
+                ) : null}
               </View>
 
               <Text style={styles.suggestionTitle}>{suggestion.title}</Text>
-              <Text style={styles.suggestionDescription}>{suggestion.description}</Text>
               <Text style={styles.whyText}>{suggestion.why}</Text>
 
               {suggestion.focusTitle ? (
                 <View style={styles.focusCard}>
                   <Text style={styles.focusTitle}>{suggestion.focusTitle}</Text>
-                  <Text style={styles.focusCopy}>{suggestion.focusCopy}</Text>
+                  <Text style={styles.focusCopy} numberOfLines={2}>
+                    {suggestion.focusCopy}
+                  </Text>
                 </View>
               ) : null}
 
@@ -240,6 +248,12 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: "wrap",
   },
+  headerLeft: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   rankPill: {
     borderRadius: theme.radius.pill,
     paddingHorizontal: 10,
@@ -265,18 +279,19 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     fontSize: 12,
   },
-  suggestionTitle: {
-    color: theme.colors.text,
-    fontSize: 20,
+  kcalText: {
+    color: theme.colors.gold,
+    fontSize: 13,
     fontWeight: "700",
   },
-  suggestionDescription: {
-    color: theme.colors.textSoft,
-    lineHeight: 20,
+  suggestionTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
   },
   whyText: {
     color: theme.colors.textMuted,
-    lineHeight: 19,
+    lineHeight: 18,
   },
   focusCard: {
     borderRadius: 16,
