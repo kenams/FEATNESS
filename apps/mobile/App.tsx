@@ -981,19 +981,25 @@ export default function App() {
     }
   }
 
-  async function handleConfirmMealChoice() {
-    if (!selectedMeal || !activeSession || !supabaseClient || !session?.user) {
+  async function handleConfirmMealChoice(mealIdOverride?: string | null) {
+    const targetMeal =
+      (mealIdOverride
+        ? suggestedMeals.find((meal) => meal.id === mealIdOverride) ?? null
+        : selectedMeal) ?? null;
+
+    if (!targetMeal || !activeSession || !supabaseClient || !session?.user) {
       return;
     }
 
     try {
       setIsBusy(true);
       setFeedbackMessage(null);
+      setSelectedMealId(targetMeal.id);
       const updatedSession = await saveSelectedMealChoice(
         supabaseClient,
         session.user.id,
         activeSession.id,
-        selectedMeal.id,
+        targetMeal.id,
       );
       await cancelActiveTokens(supabaseClient, session.user.id);
       const nextToken = await createDispenseToken(
@@ -1012,7 +1018,7 @@ export default function App() {
         ),
       );
       setFeedbackMessage(
-        `${selectedMeal.name} retenu. Le QR est genere, tu peux maintenant le presenter a la borne.`,
+        `${targetMeal.name} retenu. Le QR est genere, tu peux maintenant le presenter a la borne.`,
       );
     } catch (error) {
       setFeedbackMessage(
@@ -1304,6 +1310,8 @@ export default function App() {
             selectedMealId={selectedMealId}
             favoriteMealIds={profile?.favoriteMealIds ?? []}
             onSelectMeal={setSelectedMealId}
+            onQuickConfirmRecommended={() => void handleConfirmMealChoice(suggestedMeals[0]?.id ?? null)}
+            isBusy={isBusy}
           />
         </AnimatedSection>
         <AnimatedSection delay={120}>

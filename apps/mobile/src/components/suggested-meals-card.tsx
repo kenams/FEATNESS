@@ -16,6 +16,8 @@ type SuggestedMealsCardProps = {
   selectedMealId: string | null;
   favoriteMealIds: string[];
   onSelectMeal: (mealId: string) => void;
+  onQuickConfirmRecommended: () => void;
+  isBusy: boolean;
 };
 
 const GOAL_LABELS: Record<GoalKey, string> = {
@@ -50,10 +52,14 @@ export function SuggestedMealsCard({
   selectedMealId,
   favoriteMealIds,
   onSelectMeal,
+  onQuickConfirmRecommended,
+  isBusy,
 }: SuggestedMealsCardProps) {
   if (meals.length === 0) {
     return null;
   }
+
+  const recommendedMeal = meals[0];
 
   return (
     <View style={styles.card}>
@@ -68,6 +74,52 @@ export function SuggestedMealsCard({
         <Text style={styles.tipCopy}>
           Commence par l&apos;option 1. Ouvre ensuite le detail uniquement si tu veux comparer les macros ou le temps de preparation.
         </Text>
+      </View>
+
+      <View style={styles.expressCard}>
+        <View style={styles.expressHeader}>
+          <View style={styles.expressCopy}>
+            <Text style={styles.expressEyebrow}>Choix express</Text>
+            <Text style={styles.expressTitle}>{recommendedMeal.name}</Text>
+            <Text style={styles.expressDescription}>
+              Le meilleur compromis entre ta seance, le prix et la rapidite de preparation.
+            </Text>
+          </View>
+          <View style={styles.expressPricePill}>
+            <Text style={styles.expressPriceText}>{formatCurrency(recommendedMeal.priceEur)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.expressTags}>
+          <View style={styles.expressTag}>
+            <Text style={styles.expressTagText}>
+              {GOAL_LABELS[recommendedMeal.targetGoal as GoalKey] ?? recommendedMeal.targetGoal}
+            </Text>
+          </View>
+          <View style={styles.expressTag}>
+            <Text style={styles.expressTagText}>{recommendedMeal.proteinG} g prot</Text>
+          </View>
+          <View style={styles.expressTag}>
+            <Text style={styles.expressTagText}>{recommendedMeal.calories} kcal</Text>
+          </View>
+          <View style={styles.expressTag}>
+            <Text style={styles.expressTagText}>
+              {recommendedMeal.allergens.length > 0
+                ? `${recommendedMeal.allergens.length} allergenes`
+                : "Sans allergene majeur"}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={[styles.expressButton, isBusy && styles.buttonDisabled]}
+          onPress={onQuickConfirmRecommended}
+          disabled={isBusy}
+        >
+          <Text style={styles.expressButtonText}>
+            {isBusy ? "Validation..." : "Choisir l'option 1 et generer le QR"}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={styles.list}>
@@ -169,6 +221,81 @@ const styles = StyleSheet.create({
     color: theme.colors.textSoft,
     lineHeight: 19,
   },
+  expressCard: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: "#132521",
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 12,
+  },
+  expressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  expressCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  expressEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+    fontWeight: "700",
+  },
+  expressTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  expressDescription: {
+    color: theme.colors.textSoft,
+    lineHeight: 20,
+  },
+  expressPricePill: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  expressPriceText: {
+    color: "#f1d893",
+    fontWeight: "700",
+  },
+  expressTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  expressTag: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  expressTagText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  expressButton: {
+    backgroundColor: theme.colors.mint,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  expressButtonText: {
+    color: theme.colors.ink,
+    fontWeight: "700",
+    textAlign: "center",
+  },
   list: {
     gap: 12,
   },
@@ -247,5 +374,8 @@ const styles = StyleSheet.create({
     color: theme.colors.mint,
     fontSize: 12,
     fontWeight: "700",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

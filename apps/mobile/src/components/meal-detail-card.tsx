@@ -173,7 +173,11 @@ export function MealDetailCard({
           disabled={isBusy}
         >
           <Text style={styles.primaryButtonText}>
-            {isBusy ? "Validation..." : isConfirmed ? "Plat valide" : "Valider ce plat"}
+            {isBusy
+              ? "Validation..."
+              : isConfirmed
+                ? "Plat valide"
+                : "Valider ce plat et ouvrir le QR"}
           </Text>
         </Pressable>
       </View>
