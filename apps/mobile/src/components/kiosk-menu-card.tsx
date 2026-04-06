@@ -35,6 +35,12 @@ export function KioskMenuCard({
       <Text style={styles.eyebrow}>Menu</Text>
       <Text style={styles.cardTitle}>Plats proposes ici</Text>
       <Text style={styles.helperText}>{getKioskStateCopy(kiosk)}</Text>
+      <View style={styles.reserveNote}>
+        <Text style={styles.reserveNoteEyebrow}>Simulation demo</Text>
+        <Text style={styles.reserveNoteText}>
+          Les trois bornes FEATNESS servent le meme menu. Ce qui change ici, c&apos;est le niveau de stock restant dans chaque salle.
+        </Text>
+      </View>
 
       {kiosk && kiosk.isActive && kiosk.stockUnits > 0 ? (
         <View style={styles.list}>
@@ -65,6 +71,13 @@ export function KioskMenuCard({
                   </View>
                   <View style={styles.metaChip}>
                     <Text style={styles.metaChipText}>{meal.calories} kcal</Text>
+                  </View>
+                  <View style={styles.metaChip}>
+                    <Text style={styles.metaChipText}>
+                      {meal.allergens.length > 0
+                        ? `${meal.allergens.length} allergene(s)`
+                        : "Sans allergene majeur"}
+                    </Text>
                   </View>
                   {isHighlighted ? (
                     <View style={[styles.metaChip, styles.highlightChip]}>
@@ -114,6 +127,25 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+  },
+  reserveNote: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 4,
+  },
+  reserveNoteEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  reserveNoteText: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
   },
   list: {
     gap: 12,

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
 
 import type { GoalKey } from "@featness/shared";
 
@@ -61,6 +62,8 @@ export function MealDetailCard({
   onConfirmChoice,
   isBusy,
 }: MealDetailCardProps) {
+  const [showIngredients, setShowIngredients] = useState(false);
+
   if (!meal) {
     return null;
   }
@@ -102,6 +105,56 @@ export function MealDetailCard({
         <Text style={styles.decisionBarCopy}>
           Si tu veux aller vite, valide ce plat maintenant. Le QR pourra etre genere juste apres si tu en as besoin.
         </Text>
+      </View>
+
+      <View style={styles.ingredientsCard}>
+        <View style={styles.ingredientsHeader}>
+          <View style={styles.ingredientsCopy}>
+            <Text style={styles.ingredientsTitle}>Ingredients et allergenes</Text>
+            <Text style={styles.ingredientsHint}>
+              Consulte la composition complete avant validation pour eviter tout risque d'allergie.
+            </Text>
+          </View>
+          <Pressable
+            style={styles.infoButton}
+            onPress={() => setShowIngredients((current) => !current)}
+          >
+            <Text style={styles.infoButtonText}>
+              {showIngredients ? "Masquer" : "Voir les infos"}
+            </Text>
+          </Pressable>
+        </View>
+
+        {showIngredients ? (
+          <View style={styles.ingredientsPanel}>
+            <Text style={styles.panelLabel}>Ingredients</Text>
+            <View style={styles.ingredientsList}>
+              {meal.ingredients.map((ingredient) => (
+                <View key={ingredient} style={styles.ingredientChip}>
+                  <Text style={styles.ingredientChipText}>{ingredient}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.panelLabel}>Allergenes</Text>
+            {meal.allergens.length > 0 ? (
+              <View style={styles.ingredientsList}>
+                {meal.allergens.map((allergen) => (
+                  <View key={allergen} style={[styles.ingredientChip, styles.allergenChip]}>
+                    <Text style={[styles.ingredientChipText, styles.allergenChipText]}>
+                      {allergen}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.panelCopy}>Aucun allergene majeur declare sur cette recette.</Text>
+            )}
+
+            <Text style={styles.panelLabel}>Note preparation</Text>
+            <Text style={styles.panelCopy}>{meal.ingredientNotes}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.actions}>
@@ -266,6 +319,83 @@ const styles = StyleSheet.create({
   },
   decisionBarCopy: {
     color: theme.colors.textMuted,
+    lineHeight: 20,
+  },
+  ingredientsCard: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 10,
+  },
+  ingredientsHeader: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  ingredientsCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  ingredientsTitle: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  ingredientsHint: {
+    color: theme.colors.textMuted,
+    lineHeight: 19,
+  },
+  infoButton: {
+    alignSelf: "flex-start",
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  infoButtonText: {
+    color: theme.colors.text,
+    fontWeight: "700",
+  },
+  ingredientsPanel: {
+    gap: 10,
+  },
+  panelLabel: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  ingredientsList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  ingredientChip: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  ingredientChipText: {
+    color: theme.colors.text,
+    fontSize: 12,
+  },
+  allergenChip: {
+    backgroundColor: "rgba(240,138,126,0.12)",
+    borderColor: "rgba(240,138,126,0.24)",
+  },
+  allergenChipText: {
+    color: theme.colors.danger,
+    fontWeight: "700",
+  },
+  panelCopy: {
+    color: theme.colors.textSoft,
     lineHeight: 20,
   },
   actions: {

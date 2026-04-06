@@ -26,6 +26,9 @@ export type DrinkBlendRecord = {
   fatG: number;
   preparationType: "lyophilise" | "auto_chauffant" | "assemblage_sec";
   accent: string;
+  ingredients: string[];
+  allergens: string[];
+  ingredientNotes: string;
 };
 
 export type KioskRecord = {
@@ -46,7 +49,15 @@ export type UserPreferencesPayload = {
 
 type DrinkBlendPresentation = Pick<
   DrinkBlendRecord,
-  "calories" | "proteinG" | "carbsG" | "fatG" | "preparationType" | "accent"
+  | "calories"
+  | "proteinG"
+  | "carbsG"
+  | "fatG"
+  | "preparationType"
+  | "accent"
+  | "ingredients"
+  | "allergens"
+  | "ingredientNotes"
 >;
 
 const PRESENTATION_BY_SLUG: Record<string, DrinkBlendPresentation> = {
@@ -57,6 +68,19 @@ const PRESENTATION_BY_SLUG: Record<string, DrinkBlendPresentation> = {
     fatG: 4,
     preparationType: "assemblage_sec",
     accent: "#6cd3ff",
+    ingredients: [
+      "Eau purifiee",
+      "Poudre de coco",
+      "Dextrose",
+      "Jus de citron",
+      "Citrate de sodium",
+      "Citrate de magnesium",
+      "Chlorure de potassium",
+      "Arome naturel citron",
+    ],
+    allergens: [],
+    ingredientNotes:
+      "Formule pensee pour la rehydratation rapide apres effort avec electrolytes et apport glucidique leger.",
   },
   "recovery-protein-mix": {
     calories: 340,
@@ -65,6 +89,17 @@ const PRESENTATION_BY_SLUG: Record<string, DrinkBlendPresentation> = {
     fatG: 8,
     preparationType: "auto_chauffant",
     accent: "#ffb86b",
+    ingredients: [
+      "Isolat de whey",
+      "Farine d'avoine",
+      "Banane dehydratee",
+      "Cacao maigre",
+      "Lecithine de tournesol",
+      "Arome naturel vanille",
+    ],
+    allergens: ["Lait", "Gluten"],
+    ingredientNotes:
+      "Melange riche en proteines et glucides, pense pour la recuperation musculaire et la recharge apres seance.",
   },
   "endurance-carb-blend": {
     calories: 290,
@@ -73,6 +108,17 @@ const PRESENTATION_BY_SLUG: Record<string, DrinkBlendPresentation> = {
     fatG: 6,
     preparationType: "lyophilise",
     accent: "#9ff58f",
+    ingredients: [
+      "Flocons d'avoine",
+      "Maltodextrine",
+      "Poudre de datte",
+      "Puree d'amande",
+      "Sel marin",
+      "Arome naturel fruits rouges",
+    ],
+    allergens: ["Fruits a coque", "Gluten"],
+    ingredientNotes:
+      "Base glucidique plus dense pour soutenir un effort long ou une recharge avant seconde seance.",
   },
 };
 
@@ -83,7 +129,40 @@ const DEFAULT_PRESENTATION: DrinkBlendPresentation = {
   fatG: 7,
   preparationType: "assemblage_sec",
   accent: "#c9a646",
+  ingredients: ["Base nutrition FEATNESS"],
+  allergens: [],
+  ingredientNotes: "Fiche ingredient detaillee a completer.",
 };
+
+const SIMULATED_KIOSKS: KioskRecord[] = [
+  {
+    id: "KIOSK-SALLE-1",
+    name: "Borne FEATNESS · Salle 1",
+    locationCity: "Salle 1",
+    isActive: true,
+    stockUnits: 18,
+    stockAlertThreshold: 6,
+    lastHeartbeatAt: new Date().toISOString(),
+  },
+  {
+    id: "KIOSK-SALLE-2",
+    name: "Borne FEATNESS · Salle 2",
+    locationCity: "Salle 2",
+    isActive: true,
+    stockUnits: 9,
+    stockAlertThreshold: 6,
+    lastHeartbeatAt: new Date().toISOString(),
+  },
+  {
+    id: "KIOSK-SALLE-3",
+    name: "Borne FEATNESS · Salle 3",
+    locationCity: "Salle 3",
+    isActive: true,
+    stockUnits: 4,
+    stockAlertThreshold: 5,
+    lastHeartbeatAt: new Date().toISOString(),
+  },
+];
 
 function mapProfileRow(row: Record<string, unknown>): UserProfile {
   return {
@@ -165,6 +244,9 @@ function mapDrinkBlendRow(row: Record<string, unknown>): DrinkBlendRecord {
     fatG: presentation.fatG,
     preparationType: presentation.preparationType,
     accent: presentation.accent,
+    ingredients: presentation.ingredients,
+    allergens: presentation.allergens,
+    ingredientNotes: presentation.ingredientNotes,
   };
 }
 
@@ -431,8 +513,17 @@ export async function fetchAvailableKiosks(
     .order("name");
 
   if (error) {
-    throw error;
+    return SIMULATED_KIOSKS;
   }
 
-  return (data ?? []).map((row) => mapKioskRow(row));
+  const kiosks = (data ?? []).map((row) => mapKioskRow(row));
+
+  if (kiosks.length === 0) {
+    return SIMULATED_KIOSKS;
+  }
+
+  const existingIds = new Set(kiosks.map((kiosk) => kiosk.id));
+  const simulatedFallbacks = SIMULATED_KIOSKS.filter((kiosk) => !existingIds.has(kiosk.id));
+
+  return [...simulatedFallbacks, ...kiosks];
 }
