@@ -37,15 +37,15 @@ export function AuthCard({
       <Text style={styles.cardTitle}>Authentification mobile</Text>
       <Text style={styles.helperText}>
         {isConfigured
-          ? "Email/password uniquement pour le MVP. Le meme projet Supabase pourra servir au mobile et a la borne."
-          : "Supabase non configure. Le flux reste visible pour la demo, mais les actions d'auth sont desactivees."}
+          ? "Connexion simple pour aller vite vers la seance puis le plat."
+          : "Supabase non configure. L'interface reste visible, mais l'auth est inactive."}
       </Text>
 
       {isConfigured ? (
         <View style={styles.demoHint}>
           <Text style={styles.demoHintEyebrow}>Raccourci demo</Text>
           <Text style={styles.demoHintText}>
-            Le bouton Connexion test ouvre directement le compte de recette FEATNESS.
+            Le bouton Connexion test ouvre directement le compte de demo.
           </Text>
         </View>
       ) : null}

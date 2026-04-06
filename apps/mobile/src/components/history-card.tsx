@@ -49,7 +49,7 @@ export function HistoryCard({ sessions, mealNamesById }: HistoryCardProps) {
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>Aucune seance enregistree</Text>
           <Text style={styles.emptyText}>
-            Lance une seance test pour alimenter l'historique, les favoris et les analytics FEATNESS.
+            Lance une seance pour retrouver ici tes choix repas.
           </Text>
         </View>
       ) : (

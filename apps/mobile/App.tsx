@@ -11,10 +11,8 @@ import {
   type BmiInsight,
   type DispenseTokenRecord,
   type GoalKey,
-  type IntensityLevel,
   type PrimaryObjectiveKey,
   type SessionSuggestion,
-  type SportKey,
   type UserProfile,
   type UserWorkoutInput,
   type WorkoutSessionRecord,
@@ -114,9 +112,6 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
 export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [sport, setSport] = useState<SportKey>("running");
-  const [intensity, setIntensity] = useState<IntensityLevel>("moderate");
-  const [goal, setGoal] = useState<GoalKey>("recovery");
   const [age, setAge] = useState("");
   const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("78");
@@ -269,8 +264,6 @@ export default function App() {
         setHeightCm(nextProfile?.heightCm ? String(nextProfile.heightCm) : "");
         setWeightKg(String(nextProfile?.weightKg ?? 78));
         setPrimaryObjective(nextProfile?.primaryObjective ?? "lose_weight");
-        setSport(nextProfile?.preferredSport ?? "running");
-        setGoal(nextProfile?.preferredGoal ?? "recovery");
         setHistory(nextHistory);
         setAvailableMeals(nextMeals);
         setActiveToken(nextToken && !isExpired(nextToken.expiresAt) ? nextToken : null);
@@ -561,9 +554,6 @@ export default function App() {
       });
 
       setProfile(nextProfile);
-      setSport(suggestion.sport);
-      setIntensity(suggestion.intensity);
-      setGoal(suggestion.goal);
 
       await createSessionFlow(
         workout,
@@ -789,7 +779,7 @@ export default function App() {
             <AnimatedSection delay={300}>
               <SuggestedMealsCard
                 meals={suggestedMeals}
-                goal={activeSession?.workout.goal ?? goal}
+                goal={activeSession?.workout.goal ?? "recovery"}
                 selectedMealId={selectedMealId}
                 favoriteMealIds={profile?.favoriteMealIds ?? []}
                 onSelectMeal={setSelectedMealId}
@@ -799,7 +789,7 @@ export default function App() {
             <AnimatedSection delay={340}>
               <MealDetailCard
                 meal={selectedMeal}
-                goal={activeSession?.workout.goal ?? goal}
+                goal={activeSession?.workout.goal ?? "recovery"}
                 isFavorite={selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false}
                 onToggleFavorite={() => void handleToggleFavoriteMeal()}
                 onConfirmChoice={() => void handleConfirmMealChoice()}
@@ -912,94 +902,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  journeyCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    gap: theme.spacing.md,
-    ...mobileShadow,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: theme.spacing.md,
-  },
   sectionEyebrow: {
     color: theme.colors.gold,
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 1.6,
-  },
-  sectionTitle: {
-    marginTop: 4,
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  progressPill: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 8,
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  progressPillText: {
-    color: theme.colors.text,
-    fontWeight: "700",
-  },
-  journeyGrid: {
-    gap: theme.spacing.sm,
-  },
-  journeyStep: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-    padding: theme.spacing.md,
-  },
-  journeyStepDone: {
-    borderColor: "rgba(111,212,168,0.25)",
-    backgroundColor: "rgba(111,212,168,0.08)",
-  },
-  journeyIndex: {
-    width: 34,
-    height: 34,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  journeyIndexDone: {
-    backgroundColor: theme.colors.gold,
-    borderColor: theme.colors.gold,
-  },
-  journeyIndexText: {
-    color: theme.colors.textMuted,
-    fontWeight: "700",
-  },
-  journeyIndexTextDone: {
-    color: theme.colors.ink,
-  },
-  journeyCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  journeyTitle: {
-    color: theme.colors.text,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  journeyDescription: {
-    color: theme.colors.textMuted,
-    lineHeight: 19,
   },
   nextActionCard: {
     backgroundColor: theme.colors.surface,
@@ -1019,60 +926,6 @@ const styles = StyleSheet.create({
   nextActionDescription: {
     color: theme.colors.textSoft,
     lineHeight: 22,
-  },
-  nextActionCta: {
-    color: theme.colors.gold,
-    lineHeight: 21,
-    fontWeight: "600",
-  },
-  storyCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    gap: theme.spacing.sm,
-    ...mobileShadow,
-  },
-  storyTitle: {
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: "700",
-    lineHeight: 28,
-  },
-  storyList: {
-    gap: 10,
-    marginTop: 4,
-  },
-  storyItem: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-    borderRadius: 18,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: 14,
-  },
-  storyBullet: {
-    width: 28,
-    height: 28,
-    borderRadius: theme.radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.goldSoft,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-  },
-  storyBulletText: {
-    color: "#f1d893",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  storyCopy: {
-    flex: 1,
-    color: theme.colors.textSoft,
-    lineHeight: 20,
   },
   feedbackBanner: {
     borderRadius: 22,
@@ -1099,37 +952,5 @@ const styles = StyleSheet.create({
   feedbackText: {
     color: theme.colors.text,
     lineHeight: 20,
-  },
-  footerCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    gap: theme.spacing.sm,
-    ...mobileShadow,
-  },
-  footerTitle: {
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: "700",
-  },
-  footerCopy: {
-    color: theme.colors.textMuted,
-    lineHeight: 21,
-  },
-  footerGhostButton: {
-    marginTop: 4,
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 13,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceMuted,
-  },
-  footerGhostButtonText: {
-    color: theme.colors.textSoft,
-    textAlign: "center",
-    fontWeight: "600",
   },
 });
