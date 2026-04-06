@@ -319,7 +319,8 @@ export default function App() {
     [selectedMealId, suggestedMeals],
   );
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
-  const hasSelectedMeal = Boolean(activeSession?.selectedMealBlendId);
+  const confirmedMealId = activeSession?.selectedMealBlendId ?? null;
+  const hasSelectedMeal = Boolean(confirmedMealId);
   const feedbackTone = getFeedbackTone(feedbackMessage);
   const recommendedScreen = useMemo(
     () =>
@@ -428,10 +429,7 @@ export default function App() {
     [availableMeals],
   );
 
-  const latestSelectedMealName =
-    (activeSession?.selectedMealBlendId && mealNamesById[activeSession.selectedMealBlendId]) ||
-    selectedMeal?.name ||
-    null;
+  const latestSelectedMealName = (confirmedMealId && mealNamesById[confirmedMealId]) || null;
 
   const screenMeta = SCREEN_META[currentScreen];
 
@@ -673,7 +671,7 @@ export default function App() {
       case "meals":
         return Boolean(session?.user && activeSession);
       case "qr":
-        return Boolean(session?.user && activeSession?.selectedMealBlendId);
+        return Boolean(session?.user && hasSelectedMeal);
       default:
         return false;
     }
@@ -945,6 +943,8 @@ export default function App() {
     }
 
     try {
+      setIsBusy(true);
+      setFeedbackMessage(null);
       const updatedSession = await saveSelectedMealChoice(
         supabaseClient,
         session.user.id,
@@ -952,14 +952,9 @@ export default function App() {
         selectedMeal.id,
       );
       await cancelActiveTokens(supabaseClient, session.user.id);
-      const nextToken = await createDispenseToken(
-        supabaseClient,
-        session.user.id,
-        updatedSession.id,
-      );
 
       setActiveSession(updatedSession);
-      setActiveToken(nextToken);
+      setActiveToken(null);
       setCurrentScreen("qr");
       setHistory((previousHistory) =>
         previousHistory.map((sessionItem) =>
@@ -967,17 +962,19 @@ export default function App() {
         ),
       );
       setFeedbackMessage(
-        `${selectedMeal.name} retenu. Le choix est synchronise et l'ecran QR est maintenant disponible.`,
+        `${selectedMeal.name} retenu. Le choix est synchronise. Tu peux maintenant generer le QR si besoin.`,
       );
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible d'enregistrer le choix du repas.",
       );
+    } finally {
+      setIsBusy(false);
     }
   }
 
   async function handleGenerateQr() {
-    if (!activeSession?.selectedMealBlendId || !supabaseClient || !session?.user) {
+    if (!hasSelectedMeal || !activeSession || !supabaseClient || !session?.user) {
       setFeedbackMessage("Choisis d'abord ton plat avant de generer le QR.");
       return;
     }
@@ -1199,7 +1196,7 @@ export default function App() {
   };
 
   const renderQrScreen = () => {
-    if (!activeSession?.selectedMealBlendId) {
+    if (!hasSelectedMeal) {
       return (
         <AnimatedSection delay={0}>
           <View style={styles.prerequisiteCard}>
@@ -1237,6 +1234,7 @@ export default function App() {
           <ActiveTokenCard
             token={activeToken}
             session={activeSession}
+            canGenerate={hasSelectedMeal}
             onGenerate={() => void handleGenerateQr()}
             isBusy={isBusy}
           />

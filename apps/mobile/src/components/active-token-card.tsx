@@ -9,6 +9,7 @@ import { mobileShadow, theme } from "../theme";
 type ActiveTokenCardProps = {
   token: DispenseTokenRecord | null;
   session: WorkoutSessionRecord | null;
+  canGenerate: boolean;
   onGenerate: () => void;
   isBusy: boolean;
 };
@@ -29,16 +30,16 @@ function formatRemaining(token: DispenseTokenRecord): string {
 export function ActiveTokenCard({
   token,
   session,
+  canGenerate,
   onGenerate,
   isBusy,
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
   const nextStepCopy = token
     ? "Ton QR est pret. Il sert uniquement a finaliser plus tard sur la borne, sans remettre ton choix repas en question."
-    : session?.selectedMealBlendId
+    : canGenerate
       ? "Ton plat est valide. Genere maintenant le QR en un clic seulement si tu veux poursuivre sur la borne."
       : "Choisis d'abord ton plat. Le QR reste secondaire pour garder un parcours simple et rapide.";
-  const canGenerate = Boolean(session?.selectedMealBlendId);
 
   useEffect(() => {
     if (!token) {
@@ -144,7 +145,9 @@ export function ActiveTokenCard({
         </View>
       ) : (
         <Text style={styles.emptyText}>
-          Aucun QR actif. Valide d'abord ton plat, puis genere le QR seulement si tu en as besoin.
+          {canGenerate
+            ? "Aucun QR actif. Ton plat est deja valide, genere le QR seulement si tu en as besoin."
+            : "Aucun QR actif. Valide d'abord ton plat, puis genere le QR seulement si tu en as besoin."}
         </Text>
       )}
     </View>
