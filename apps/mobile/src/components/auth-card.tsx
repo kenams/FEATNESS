@@ -37,7 +37,7 @@ export function AuthCard({
       <Text style={styles.cardTitle}>Authentification mobile</Text>
       <Text style={styles.helperText}>
         {isConfigured
-          ? "Connexion simple pour aller vite vers la seance puis le plat."
+          ? "Connecte-toi pour passer directement du profil au plat recommande."
           : "Supabase non configure. L'interface reste visible, mais l'auth est inactive."}
       </Text>
 
@@ -45,7 +45,7 @@ export function AuthCard({
         <View style={styles.demoHint}>
           <Text style={styles.demoHintEyebrow}>Raccourci demo</Text>
           <Text style={styles.demoHintText}>
-            Le bouton Connexion test ouvre directement le compte de demo.
+            Le bouton Connexion test ouvre directement le compte de demonstration propre.
           </Text>
         </View>
       ) : null}

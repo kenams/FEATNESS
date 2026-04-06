@@ -34,10 +34,10 @@ export function ActiveTokenCard({
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
   const nextStepCopy = token
-    ? "Ton QR est pret. Tu peux maintenant passer a la borne avec ton repas deja choisi."
+    ? "Ton QR est pret. Il sert uniquement a finaliser plus tard sur la borne, sans remettre ton choix repas en question."
     : session?.selectedMealBlendId
-      ? "Ton plat est valide. Genere maintenant le QR en un clic si tu veux finaliser sur la borne."
-      : "Choisis d'abord ton plat. Le QR ne vient qu'apres, pour garder un parcours simple.";
+      ? "Ton plat est valide. Genere maintenant le QR en un clic seulement si tu veux poursuivre sur la borne."
+      : "Choisis d'abord ton plat. Le QR reste secondaire pour garder un parcours simple et rapide.";
   const canGenerate = Boolean(session?.selectedMealBlendId);
 
   useEffect(() => {
@@ -84,10 +84,9 @@ export function ActiveTokenCard({
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Qr</Text>
-      <Text style={styles.cardTitle}>QR FEATNESS</Text>
+      <Text style={styles.cardTitle}>QR optionnel FEATNESS</Text>
       <Text style={styles.helperText}>
-        Le QR code reste valide 30 minutes. La borne valide l'UUID, le statut et
-        l'expiration avant preparation.
+        Le QR reste valide 30 minutes. Il ne sert qu'apres validation du plat, pour une finalisation eventuelle sur borne.
       </Text>
       <View style={styles.callout}>
         <Text style={styles.calloutEyebrow}>Etape suivante</Text>

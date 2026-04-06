@@ -24,7 +24,7 @@ export function SessionSuggestionsCard({
       <Text style={styles.eyebrow}>Seances</Text>
       <Text style={styles.cardTitle}>Seances conseillees pour atteindre ton objectif</Text>
       <Text style={styles.helperText}>
-        Choisis une seance. FEATNESS calcule ensuite directement ton plat recommande.
+        Choisis une seance, puis laisse FEATNESS te proposer directement les plats les plus coherents.
       </Text>
 
       <View style={styles.list}>

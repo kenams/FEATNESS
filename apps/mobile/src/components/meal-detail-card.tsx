@@ -94,9 +94,9 @@ export function MealDetailCard({
       </View>
 
       <View style={styles.decisionBar}>
-        <Text style={styles.decisionBarTitle}>Decision conseillee</Text>
+        <Text style={styles.decisionBarTitle}>Decision la plus rapide</Text>
         <Text style={styles.decisionBarCopy}>
-          Si tu veux aller vite, valide ce repas puis retrouve-le dans ton historique FEATNESS.
+          Si tu veux aller vite, valide ce plat maintenant. Le QR pourra etre genere juste apres si tu en as besoin.
         </Text>
       </View>
 
@@ -107,7 +107,7 @@ export function MealDetailCard({
           </Text>
         </Pressable>
         <Pressable style={styles.primaryButton} onPress={onConfirmChoice}>
-          <Text style={styles.primaryButtonText}>Choix retenu</Text>
+          <Text style={styles.primaryButtonText}>Valider ce plat</Text>
         </Pressable>
       </View>
     </View>

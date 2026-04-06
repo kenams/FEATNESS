@@ -44,7 +44,7 @@ export function HistoryCard({ sessions, mealNamesById }: HistoryCardProps) {
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>Memoire</Text>
-      <Text style={styles.cardTitle}>Historique des seances</Text>
+      <Text style={styles.cardTitle}>Derniers choix FEATNESS</Text>
       {sessions.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>Aucune seance enregistree</Text>

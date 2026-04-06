@@ -44,6 +44,8 @@ npm install
    - `supabase/migrations/003_payments.sql`
    - `supabase/migrations/004_owner_role.sql`
    - `supabase/migrations/005_push_tokens.sql`
+   - `supabase/migrations/006_user_preferences_and_meal_selection.sql`
+   - `supabase/migrations/007_profile_health_inputs.sql`
 4. Cree un compte admin FEATNESS :
 
 ```sql
@@ -92,9 +94,10 @@ Applications :
 
 1. Ouvre `http://localhost:3001/login`
 2. Cree un compte utilisateur
-3. Complete ton profil dans `/app`
-4. Renseigne une seance
-5. Genere un QR FEATNESS et visualise les repas recommandes
+3. Complete la fiche sante dans `/app`
+4. Choisis une seance suggeree
+5. Valide un plat recommande
+6. Genere un QR uniquement si necessaire
 
 ### 2. Web admin
 
@@ -107,7 +110,10 @@ Applications :
 1. Lance Expo avec `npm run dev:mobile`
 2. Ouvre Expo Go
 3. Connecte-toi ou cree un compte
-4. Complete le profil, cree une seance et genere le QR
+4. Complete la fiche sante
+5. Choisis une seance suggeree
+6. Valide un plat
+7. Genere le QR seulement si tu veux poursuivre sur la borne
 
 ### 4. Borne
 
@@ -121,6 +127,7 @@ Applications :
 - le mobile reste le produit principal pour l'utilisateur final
 - l'espace admin vit dans la meme app web que l'espace utilisateur
 - la borne reste disponible comme experience terrain / demo
+- le guide de demonstration rapide est dans `DEMO.md`
 
 ## Verification
 

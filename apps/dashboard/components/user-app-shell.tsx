@@ -148,6 +148,26 @@ function getQuickStatus(
   return "Ton plat est choisi et ton QR est pret.";
 }
 
+function getFeedbackTone(
+  message: string | null,
+): "neutral" | "success" | "warning" {
+  if (!message) {
+    return "neutral";
+  }
+
+  const lowered = message.toLowerCase();
+
+  if (
+    lowered.includes("impossible") ||
+    lowered.includes("erreur") ||
+    lowered.includes("manquant")
+  ) {
+    return "warning";
+  }
+
+  return "success";
+}
+
 export function UserAppShell({ initialProfile }: UserAppShellProps) {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -205,6 +225,40 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
   const hasSelectedMeal = Boolean(activeSession?.selectedMealBlendId);
   const canAccessAdmin =
     initialProfile.role === "owner" || initialProfile.role === "admin";
+  const feedbackTone = getFeedbackTone(feedbackMessage);
+  const journeySteps = useMemo(
+    () => [
+      {
+        key: "health",
+        label: "Profil",
+        status: hasOnboarding ? "done" : "current",
+      },
+      {
+        key: "session",
+        label: "Seance",
+        status: !hasOnboarding
+          ? "upcoming"
+          : activeSession
+            ? "done"
+            : "current",
+      },
+      {
+        key: "meal",
+        label: "Plat",
+        status: !hasOnboarding || !activeSession
+          ? "upcoming"
+          : hasSelectedMeal
+            ? "done"
+            : "current",
+      },
+      {
+        key: "qr",
+        label: "QR",
+        status: !hasSelectedMeal ? "upcoming" : activeToken ? "done" : "current",
+      },
+    ],
+    [activeSession, activeToken, hasOnboarding, hasSelectedMeal],
+  );
 
   const mealNamesById = useMemo(
     () => Object.fromEntries(meals.map((meal) => [meal.id, meal.name])) as Record<string, string>,
@@ -557,6 +611,22 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                 Fiche sante, seance utile, plat recommande. Le QR ne vient qu'apres.
               </p>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {journeySteps.map((step) => (
+                <span
+                  key={step.key}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    step.status === "done"
+                      ? "border border-emerald-300/40 bg-emerald-400/10 text-emerald-100"
+                      : step.status === "current"
+                        ? "border border-featness-gold/40 bg-featness-gold/10 text-featness-gold"
+                        : "border border-white/10 bg-white/5 text-white/55"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -584,10 +654,19 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
           </p>
           <h2 className="mt-2 text-2xl font-semibold">Le chemin le plus court vers ton plat</h2>
           <p className="mt-2 max-w-3xl text-sm text-featness-muted">{quickStatus}</p>
+          <p className="mt-2 text-xs text-featness-muted">
+            Demo FEATNESS : profil complet, une seance choisie, un plat valide, QR seulement en fin de parcours.
+          </p>
         </section>
 
         {feedbackMessage ? (
-          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
+          <div
+            className={`rounded-3xl px-5 py-4 text-sm ${
+              feedbackTone === "warning"
+                ? "border border-amber-200 bg-amber-50 text-amber-900"
+                : "border border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+          >
             {feedbackMessage}
           </div>
         ) : null}

@@ -109,6 +109,12 @@ function getFeedbackTone(message: string | null): "neutral" | "success" | "warni
   return "success";
 }
 
+type JourneyStep = {
+  key: string;
+  label: string;
+  status: "done" | "current" | "upcoming";
+};
+
 export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -166,6 +172,50 @@ export default function App() {
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const hasSelectedMeal = Boolean(activeSession?.selectedMealBlendId);
   const feedbackTone = getFeedbackTone(feedbackMessage);
+  const currentJourney = useMemo<JourneyStep[]>(() => {
+    const hasSession = Boolean(activeSession);
+    const hasQr = Boolean(activeToken);
+
+    return [
+      {
+        key: "account",
+        label: "Compte",
+        status: session?.user ? "done" : "current",
+      },
+      {
+        key: "health",
+        label: "Profil",
+        status: !session?.user
+          ? "upcoming"
+          : hasCompletedOnboarding
+            ? "done"
+            : "current",
+      },
+      {
+        key: "session",
+        label: "Seance",
+        status: !session?.user || !hasCompletedOnboarding
+          ? "upcoming"
+          : hasSession
+            ? "done"
+            : "current",
+      },
+      {
+        key: "meal",
+        label: "Plat",
+        status: !session?.user || !hasCompletedOnboarding || !hasSession
+          ? "upcoming"
+          : hasSelectedMeal
+            ? "done"
+            : "current",
+      },
+      {
+        key: "qr",
+        label: "QR",
+        status: !hasSelectedMeal ? "upcoming" : hasQr ? "done" : "current",
+      },
+    ];
+  }, [activeSession, activeToken, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
   const quickStatus = useMemo(() => {
     if (!session?.user) {
       return "Connecte-toi puis complete ton profil pour obtenir ton plat rapidement.";
@@ -677,6 +727,34 @@ export default function App() {
               Profil sante, seances utiles, recommandation repas. FEATNESS va droit au but
               pour te proposer rapidement le bon plat.
             </Text>
+            <View style={styles.journeyStrip}>
+              {currentJourney.map((step) => (
+                <View
+                  key={step.key}
+                  style={[
+                    styles.journeyChip,
+                    step.status === "done"
+                      ? styles.journeyChipDone
+                      : step.status === "current"
+                        ? styles.journeyChipCurrent
+                        : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.journeyChipText,
+                      step.status === "done"
+                        ? styles.journeyChipTextDone
+                        : step.status === "current"
+                          ? styles.journeyChipTextCurrent
+                          : null,
+                    ]}
+                  >
+                    {step.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
             <View style={styles.heroStats}>
               <View style={styles.heroPill}>
                 <Text style={styles.heroPillValue}>
@@ -705,6 +783,10 @@ export default function App() {
             <Text style={styles.sectionEyebrow}>Statut rapide</Text>
             <Text style={styles.nextActionTitle}>Le chemin le plus court vers ton repas</Text>
             <Text style={styles.nextActionDescription}>{quickStatus}</Text>
+            <Text style={styles.nextActionHint}>
+              Pour une demo propre : profil complet, une seance choisie, un plat valide, puis QR
+              seulement a la fin.
+            </Text>
           </View>
         </AnimatedSection>
 
@@ -875,6 +957,39 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     maxWidth: 340,
   },
+  journeyStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: theme.spacing.sm,
+  },
+  journeyChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.radius.pill,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  journeyChipDone: {
+    backgroundColor: theme.colors.mintSoft,
+    borderColor: "rgba(111,212,168,0.28)",
+  },
+  journeyChipCurrent: {
+    backgroundColor: theme.colors.goldSoft,
+    borderColor: theme.colors.borderStrong,
+  },
+  journeyChipText: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  journeyChipTextDone: {
+    color: theme.colors.mint,
+  },
+  journeyChipTextCurrent: {
+    color: "#f1d893",
+  },
   heroStats: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -926,6 +1041,11 @@ const styles = StyleSheet.create({
   nextActionDescription: {
     color: theme.colors.textSoft,
     lineHeight: 22,
+  },
+  nextActionHint: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   feedbackBanner: {
     borderRadius: 22,

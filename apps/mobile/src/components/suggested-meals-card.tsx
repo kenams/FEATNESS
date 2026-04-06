@@ -58,15 +58,15 @@ export function SuggestedMealsCard({
   return (
     <View style={styles.card}>
       <Text style={styles.cardEyebrow}>Catalogue</Text>
-      <Text style={styles.cardTitle}>Plats proposes apres scan</Text>
+      <Text style={styles.cardTitle}>Plats recommandes maintenant</Text>
       <Text style={styles.helperText}>
-        Le mobile te montre tout de suite les choix les plus coherents. Meme sans
-        borne, tu peux deja retenir ton plat, l'ajouter en favori et preparer la suite.
+        FEATNESS affiche tout de suite les 3 options les plus coherentes. Le but est de
+        choisir ton plat ici, sans attendre la borne.
       </Text>
       <View style={styles.tipBox}>
         <Text style={styles.tipEyebrow}>Conseil FEATNESS</Text>
         <Text style={styles.tipCopy}>
-          Commence par l&apos;option 1, puis ouvre le detail si tu veux comparer les macros et le temps de preparation.
+          Commence par l&apos;option 1. Ouvre ensuite le detail uniquement si tu veux comparer les macros ou le temps de preparation.
         </Text>
       </View>
 
