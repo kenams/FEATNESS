@@ -28,6 +28,7 @@ import { ProfileCard } from "./src/components/profile-card";
 import { SessionSuggestionsCard } from "./src/components/session-suggestions-card";
 import { SuggestedMealsCard } from "./src/components/suggested-meals-card";
 import {
+  clearSelectedMealChoice,
   cancelActiveTokens,
   createDispenseToken,
   createWorkoutSession,
@@ -1259,6 +1260,39 @@ export default function App() {
     }
   }
 
+  async function handleClearMealChoice() {
+    if (!activeSession || !supabaseClient || !session?.user) {
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+      setFeedbackMessage(null);
+      await cancelActiveTokens(supabaseClient, session.user.id);
+      const updatedSession = await clearSelectedMealChoice(
+        supabaseClient,
+        session.user.id,
+        activeSession.id,
+      );
+
+      setActiveToken(null);
+      setActiveSession(updatedSession);
+      setSelectedMealId(null);
+      setCurrentScreen("meals");
+      scrollToTop();
+      setHistory((previousHistory) =>
+        previousHistory.map((sessionItem) =>
+          sessionItem.id === updatedSession.id ? updatedSession : sessionItem,
+        ),
+      );
+      setFeedbackMessage("Plat retire. Tu peux en choisir un autre.");
+    } catch (error) {
+      setFeedbackMessage(formatRuntimeError(error, "Impossible de retirer ce plat."));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   const renderHomeScreen = () => (
     <>
       <AnimatedSection delay={0}>
@@ -1520,6 +1554,7 @@ export default function App() {
             onQuickConfirmRecommended={() =>
               void handleConfirmMealChoice(selectedMealId ?? suggestedMeals[0]?.id ?? null)
             }
+            onClearConfirmedMeal={() => void handleClearMealChoice()}
             onToggleFavorite={() => void handleToggleFavoriteMeal()}
             isFavorite={
               selectedMeal ? profile?.favoriteMealIds.includes(selectedMeal.id) ?? false : false
@@ -1577,6 +1612,13 @@ export default function App() {
                 Appuie une seule fois. Le QR sera ensuite affiche en plein ecran pour la borne.
               </Text>
               <Pressable
+                style={[styles.secondaryCta, isBusy && styles.buttonDisabled]}
+                onPress={() => void handleClearMealChoice()}
+                disabled={isBusy}
+              >
+                <Text style={styles.secondaryCtaText}>Changer de plat</Text>
+              </Pressable>
+              <Pressable
                 style={[styles.primaryCta, isBusy && styles.buttonDisabled]}
                 onPress={() => void handleGenerateQr()}
                 disabled={isBusy}
@@ -1596,6 +1638,7 @@ export default function App() {
             mealName={latestSelectedMealName}
             canGenerate={hasSelectedMeal}
             onGenerate={() => void handleGenerateQr()}
+            onClearMeal={() => void handleClearMealChoice()}
             isBusy={isBusy}
           />
         </AnimatedSection>

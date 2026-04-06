@@ -12,6 +12,7 @@ type ActiveTokenCardProps = {
   mealName: string | null;
   canGenerate: boolean;
   onGenerate: () => void;
+  onClearMeal: () => void;
   isBusy: boolean;
 };
 
@@ -34,6 +35,7 @@ export function ActiveTokenCard({
   mealName,
   canGenerate,
   onGenerate,
+  onClearMeal,
   isBusy,
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -149,6 +151,13 @@ export function ActiveTokenCard({
               Seance : {session.workout.sport} / {session.preparationStatus}
             </Text>
           ) : null}
+          <Pressable
+            style={[styles.secondaryButton, isBusy && styles.buttonDisabled]}
+            onPress={onClearMeal}
+            disabled={isBusy}
+          >
+            <Text style={styles.secondaryButtonText}>Changer de plat</Text>
+          </Pressable>
           <Pressable style={styles.secondaryButton} onPress={onGenerate} disabled={isBusy}>
             <Text style={styles.secondaryButtonText}>
               {isBusy ? "Regeneration..." : "Regenerer le QR"}

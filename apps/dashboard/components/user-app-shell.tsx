@@ -24,6 +24,7 @@ import type { DashboardProfile, DrinkBlendRecord } from "@/lib/dashboard-shared"
 import { formatCurrency } from "@/lib/dashboard-shared";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
+  clearSelectedMealChoice,
   cancelActiveTokens,
   createDispenseToken,
   createWorkoutSession,
@@ -622,6 +623,39 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     }
   }
 
+  async function handleClearMealChoice() {
+    if (!activeSession || !session?.user) {
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+      setFeedbackMessage(null);
+      await cancelActiveTokens(supabase, session.user.id);
+      const updatedSession = await clearSelectedMealChoice(
+        supabase,
+        session.user.id,
+        activeSession.id,
+      );
+
+      setActiveToken(null);
+      setActiveSession(updatedSession);
+      setSelectedMealId(null);
+      setHistory((current) =>
+        current.map((sessionItem) =>
+          sessionItem.id === updatedSession.id ? updatedSession : sessionItem,
+        ),
+      );
+      setFeedbackMessage("Plat retire. Tu peux en choisir un autre.");
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Impossible de retirer ce plat.",
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/login");
@@ -1038,6 +1072,16 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                               ? "Retirer des favoris"
                               : "Ajouter aux favoris"}
                           </button>
+                          {activeSession?.selectedMealBlendId ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleClearMealChoice()}
+                              disabled={isBusy}
+                              className="rounded-full border border-white/15 px-5 py-3 text-sm font-medium text-white transition hover:border-rose-300 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Changer de plat
+                            </button>
+                          ) : null}
                         </div>
                       </>
                     ) : (
@@ -1074,9 +1118,19 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                 {isBusy
                   ? "Generation..."
                   : activeSession?.selectedMealBlendId
-                    ? "Generer mon QR"
-                    : "Valide d'abord ton plat"}
+                  ? "Generer mon QR"
+                  : "Valide d'abord ton plat"}
               </button>
+              {activeSession?.selectedMealBlendId ? (
+                <button
+                  type="button"
+                  onClick={() => void handleClearMealChoice()}
+                  disabled={isBusy}
+                  className="mt-3 w-full rounded-full border border-black/10 px-5 py-3 text-sm font-medium text-featness-ink transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Changer de plat
+                </button>
+              ) : null}
 
               {activeToken ? (
                 <div className="mt-5 grid gap-4">

@@ -24,6 +24,7 @@ type SuggestedMealsCardProps = {
   favoriteMealIds: string[];
   onSelectMeal: (mealId: string) => void;
   onQuickConfirmRecommended: () => void;
+  onClearConfirmedMeal: () => void;
   onToggleFavorite: () => void;
   isFavorite: boolean;
   isConfirmed: boolean;
@@ -124,6 +125,7 @@ export function SuggestedMealsCard({
   favoriteMealIds,
   onSelectMeal,
   onQuickConfirmRecommended,
+  onClearConfirmedMeal,
   onToggleFavorite,
   isFavorite,
   isConfirmed,
@@ -215,6 +217,15 @@ export function SuggestedMealsCard({
               {isFavorite ? "Favori ajoute" : "Ajouter aux favoris"}
             </Text>
           </Pressable>
+          {isConfirmed ? (
+            <Pressable
+              style={[styles.secondaryAction, isBusy && styles.buttonDisabled]}
+              onPress={onClearConfirmedMeal}
+              disabled={isBusy}
+            >
+              <Text style={styles.secondaryActionText}>Retirer ce plat</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             style={[
               styles.primaryAction,

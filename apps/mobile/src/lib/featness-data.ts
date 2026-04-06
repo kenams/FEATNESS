@@ -391,6 +391,28 @@ export async function saveSelectedMealChoice(
   return mapSessionRow(data);
 }
 
+export async function clearSelectedMealChoice(
+  client: SupabaseClient,
+  userId: string,
+  sessionId: string,
+): Promise<WorkoutSessionRecord> {
+  const { data, error } = await client
+    .from("workout_sessions")
+    .update({
+      selected_meal_blend_id: null,
+    })
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return mapSessionRow(data);
+}
+
 export async function fetchActiveToken(
   client: SupabaseClient,
   userId: string,
