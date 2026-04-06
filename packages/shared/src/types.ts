@@ -13,6 +13,12 @@ export type SportKey =
 
 export type GoalKey = "hydration" | "recovery" | "performance";
 
+export type PrimaryObjectiveKey =
+  | "lose_weight"
+  | "maintain"
+  | "gain_muscle"
+  | "improve_endurance";
+
 export type UserWorkoutInput = {
   sport: SportKey;
   intensity: IntensityLevel;
@@ -56,7 +62,10 @@ export type UserProfile = {
   id: string;
   email: string;
   fullName: string | null;
+  age: number | null;
   weightKg: number | null;
+  heightCm: number | null;
+  primaryObjective: PrimaryObjectiveKey | null;
   gymName: string | null;
   preferredSport: SportKey | null;
   preferredGoal: GoalKey | null;
@@ -64,6 +73,23 @@ export type UserProfile = {
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BmiInsight = {
+  bmi: number;
+  category: "underweight" | "healthy" | "overweight" | "obesity";
+  label: string;
+};
+
+export type SessionSuggestion = {
+  key: string;
+  title: string;
+  description: string;
+  why: string;
+  sport: SportKey;
+  intensity: IntensityLevel;
+  durationMin: number;
+  goal: GoalKey;
 };
 
 export type WorkoutSessionRecord = {

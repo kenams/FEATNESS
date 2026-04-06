@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import type { Session } from "@supabase/supabase-js";
 
 import {
+  buildSessionSuggestions,
   buildNutritionRecommendation,
+  calculateBmi,
   isExpired,
+  type BmiInsight,
   type DispenseTokenRecord,
   type GoalKey,
   type IntensityLevel,
+  type PrimaryObjectiveKey,
+  type SessionSuggestion,
   type SportKey,
   type UserProfile,
   type UserWorkoutInput,
@@ -20,9 +25,8 @@ import { AnimatedSection } from "./src/components/animated-section";
 import { AuthCard } from "./src/components/auth-card";
 import { HistoryCard } from "./src/components/history-card";
 import { MealDetailCard } from "./src/components/meal-detail-card";
-import { PreferencesCard } from "./src/components/preferences-card";
 import { ProfileCard } from "./src/components/profile-card";
-import { RecommendationCard } from "./src/components/recommendation-card";
+import { SessionSuggestionsCard } from "./src/components/session-suggestions-card";
 import { SuggestedMealsCard } from "./src/components/suggested-meals-card";
 import {
   cancelActiveTokens,
@@ -88,13 +92,6 @@ function buildSuggestedMeals(
     }));
 }
 
-type JourneyStep = {
-  key: string;
-  title: string;
-  description: string;
-  done: boolean;
-};
-
 function getFeedbackTone(message: string | null): "neutral" | "success" | "warning" {
   if (!message) {
     return "neutral";
@@ -120,10 +117,11 @@ export default function App() {
   const [sport, setSport] = useState<SportKey>("running");
   const [intensity, setIntensity] = useState<IntensityLevel>("moderate");
   const [goal, setGoal] = useState<GoalKey>("recovery");
-  const [durationMin, setDurationMin] = useState("45");
+  const [age, setAge] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [weightKg, setWeightKg] = useState("78");
-  const [fullName, setFullName] = useState("");
-  const [gymName, setGymName] = useState("");
+  const [primaryObjective, setPrimaryObjective] =
+    useState<PrimaryObjectiveKey>("lose_weight");
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [history, setHistory] = useState<WorkoutSessionRecord[]>([]);
@@ -137,16 +135,21 @@ export default function App() {
   const supabaseEnabled = isMobileSupabaseConfigured();
   const supabaseClient = useMemo(() => getMobileSupabaseClient(), []);
 
-  const recommendation = useMemo(
+  const bmiInsight = useMemo<BmiInsight | null>(
+    () => calculateBmi(Number(weightKg) || 0, Number(heightCm) || 0),
+    [heightCm, weightKg],
+  );
+  const sessionSuggestions = useMemo(
     () =>
-      buildNutritionRecommendation({
-        sport,
-        intensity,
-        goal,
-        durationMin: Number(durationMin) || 0,
-        weightKg: Number(weightKg) || 0,
-      }),
-    [durationMin, goal, intensity, sport, weightKg],
+      Number(age) > 0 && Number(weightKg) > 0 && Number(heightCm) > 0
+        ? buildSessionSuggestions({
+            age: Number(age),
+            weightKg: Number(weightKg),
+            heightCm: Number(heightCm),
+            primaryObjective,
+          })
+        : [],
+    [age, heightCm, primaryObjective, weightKg],
   );
 
   const suggestedMeals = useMemo(() => {
@@ -166,119 +169,31 @@ export default function App() {
     [selectedMealId, suggestedMeals],
   );
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
-  const hasActiveQr = Boolean(activeToken && activeSession);
   const hasSelectedMeal = Boolean(activeSession?.selectedMealBlendId);
   const feedbackTone = getFeedbackTone(feedbackMessage);
-  const journeySteps = useMemo<JourneyStep[]>(
-    () => [
-      {
-        key: "auth",
-        title: "Connexion",
-        description: session?.user ? "Session FEATNESS activee" : "Accede a ton espace mobile",
-        done: Boolean(session?.user),
-      },
-      {
-        key: "profile",
-        title: "Profil",
-        description: hasCompletedOnboarding ? "Profil et poids enregistres" : "Complete ton onboarding",
-        done: hasCompletedOnboarding,
-      },
-      {
-        key: "session",
-        title: "Seance",
-        description: activeSession ? "Reco calculee et session creee" : "Configure ton effort du jour",
-        done: Boolean(activeSession),
-      },
-      {
-        key: "qr",
-        title: "QR",
-        description: hasActiveQr ? "Token de distribution genere" : "Genere le QR FEATNESS",
-        done: hasActiveQr,
-      },
-      {
-        key: "meal",
-        title: "Plat",
-        description: hasSelectedMeal ? "Repas retenu et synchronise" : "Choisis ton repas conseille",
-        done: hasSelectedMeal,
-      },
-    ],
-    [activeSession, hasActiveQr, hasCompletedOnboarding, hasSelectedMeal, session?.user],
-  );
-
-  const nextAction = useMemo(() => {
+  const quickStatus = useMemo(() => {
     if (!session?.user) {
-      return {
-        eyebrow: "Etape 1",
-        title: "Connecte-toi pour demarrer un flux complet",
-        description:
-          "Le compte test te donne un parcours immediat sans configuration supplementaire.",
-        cta: "Utilise le bouton Connexion test pour ouvrir un scenario de demo en quelques secondes.",
-      };
+      return "Connecte-toi puis complete ton profil pour obtenir ton plat rapidement.";
     }
 
     if (!hasCompletedOnboarding) {
-      return {
-        eyebrow: "Etape 2",
-        title: "Termine ton onboarding",
-        description:
-          "Nom, poids et salle suffisent pour fiabiliser la recommandation et la persistance Supabase.",
-        cta: "Renseigne ton profil puis sauvegarde pour debloquer le QR FEATNESS.",
-      };
+      return "Complete ton profil sante. L'app te proposera ensuite directement des seances utiles.";
     }
 
     if (!activeSession) {
-      return {
-        eyebrow: "Etape 3",
-        title: "Lance une seance",
-        description:
-          "Tu peux renseigner ta vraie session ou utiliser la demo en un clic pour aller plus vite.",
-        cta: "Le meilleur raccourci ici est Lancer une seance test en 1 clic.",
-      };
-    }
-
-    if (!hasActiveQr) {
-      return {
-        eyebrow: "Etape 4",
-        title: "Genere ton QR FEATNESS",
-        description:
-          "Le QR fige la session et cree le point de passage vers la distribution et le choix repas.",
-        cta: "Genere le QR puis descends juste apres pour comparer les plats proposes.",
-      };
+      return "Choisis une seance suggeree pour lancer instantanement ta recommandation repas.";
     }
 
     if (!hasSelectedMeal) {
-      return {
-        eyebrow: "Etape 5",
-        title: "Choisis le plat le plus coherent",
-        description:
-          "FEATNESS classe deja les options. Tu peux valider la meilleure ou garder une alternative favorite.",
-        cta: "Ouvre le detail d'un plat puis appuie sur Choix retenu.",
-      };
+      return "Tes 3 plats sont prets. Choisis simplement celui que tu veux.";
     }
 
-    return {
-      eyebrow: "Flux complet",
-      title: "Ton parcours FEATNESS est pret",
-      description:
-        "Profil, session, QR et repas retenu sont maintenant alignes et synchronises.",
-      cta: "Tu peux maintenant rejouer une nouvelle session ou consulter l'historique pour comparer tes choix.",
-    };
-  }, [activeSession, hasActiveQr, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
-  const storyHighlights = useMemo(
-    () =>
-      session?.user
-        ? [
-            "Profil et preferences gardent ta logique FEATNESS d'une seance a l'autre.",
-            "Le QR connecte la reco, la session et le choix repas dans un meme fil narratif.",
-            "Chaque favori et chaque choix enrichissent aussi le dashboard admin.",
-          ]
-        : [
-            "Connexion test pour entrer tout de suite dans un parcours realiste.",
-            "Seance, QR et plats recommandes s'enchainent sans quitter l'app.",
-            "Les choix retenus remontent dans Supabase pour le suivi produit FEATNESS.",
-          ],
-    [session?.user],
-  );
+    if (!activeToken) {
+      return "Ton plat est choisi. Le QR est optionnel et peut etre genere ensuite si besoin.";
+    }
+
+    return "C'est bon. Ton plat est choisi et ton QR est pret.";
+  }, [activeSession, activeToken, hasCompletedOnboarding, hasSelectedMeal, session?.user]);
 
   const mealNamesById = useMemo(
     () =>
@@ -347,12 +262,13 @@ export default function App() {
         const nextActiveSession =
           nextToken && !isExpired(nextToken.expiresAt)
             ? nextHistory.find((sessionItem) => sessionItem.id === nextToken.sessionId) ?? null
-            : null;
+            : nextHistory[0] ?? null;
 
         setProfile(nextProfile);
-        setFullName(nextProfile?.fullName ?? "");
-        setGymName(nextProfile?.gymName ?? "");
+        setAge(nextProfile?.age ? String(nextProfile.age) : "");
+        setHeightCm(nextProfile?.heightCm ? String(nextProfile.heightCm) : "");
         setWeightKg(String(nextProfile?.weightKg ?? 78));
+        setPrimaryObjective(nextProfile?.primaryObjective ?? "lose_weight");
         setSport(nextProfile?.preferredSport ?? "running");
         setGoal(nextProfile?.preferredGoal ?? "recovery");
         setHistory(nextHistory);
@@ -492,14 +408,8 @@ export default function App() {
       nextRecommendation,
     );
 
-    const nextToken = await createDispenseToken(
-      supabaseClient,
-      session.user.id,
-      nextSession.id,
-    );
-
     setActiveSession(nextSession);
-    setActiveToken(nextToken);
+    setActiveToken(null);
     setSelectedMealId(null);
     setHistory((previousHistory) => [nextSession, ...previousHistory].slice(0, 12));
     setFeedbackMessage(successMessage);
@@ -595,20 +505,28 @@ export default function App() {
       return;
     }
 
+    if (Number(age) <= 0 || Number(weightKg) <= 0 || Number(heightCm) <= 0) {
+      setFeedbackMessage("Renseigne age, poids et taille pour continuer.");
+      return;
+    }
+
     setIsBusy(true);
     setFeedbackMessage(null);
 
     try {
       const nextProfile = await saveProfile(supabaseClient, session.user.id, {
         email: session.user.email ?? "",
-        fullName: fullName.trim(),
+        fullName: profile?.fullName ?? "",
+        age: Number(age),
         weightKg: Number(weightKg) || 0,
-        gymName: gymName.trim(),
+        heightCm: Number(heightCm) || 0,
+        primaryObjective,
+        gymName: profile?.gymName ?? "",
       });
 
       setProfile(nextProfile);
       setWeightKg(String(nextProfile.weightKg ?? weightKg));
-      setFeedbackMessage("Profil FEATNESS sauvegarde.");
+      setFeedbackMessage("Profil sante FEATNESS sauvegarde. Tu peux maintenant choisir une seance.");
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible d'enregistrer le profil.",
@@ -618,117 +536,43 @@ export default function App() {
     }
   }
 
-  async function handleSaveCurrentPreferences() {
-    if (!supabaseClient || !session?.user || !profile) {
+  async function handleStartSuggestedSession(suggestion: SessionSuggestion) {
+    if (!supabaseClient || !session?.user || !profile?.onboardingCompleted) {
+      setFeedbackMessage("Complete d'abord ton profil pour debloquer les seances suggerees.");
       return;
     }
 
+    setIsBusy(true);
+    setFeedbackMessage(null);
+
     try {
+      const workout: UserWorkoutInput = {
+        sport: suggestion.sport,
+        intensity: suggestion.intensity,
+        goal: suggestion.goal,
+        durationMin: suggestion.durationMin,
+        weightKg: Number(weightKg) || 0,
+      };
+
       const nextProfile = await saveUserPreferences(supabaseClient, session.user.id, {
-        preferredSport: sport,
-        preferredGoal: goal,
+        preferredSport: suggestion.sport,
+        preferredGoal: suggestion.goal,
         favoriteMealIds: profile.favoriteMealIds,
       });
 
       setProfile(nextProfile);
-      setFeedbackMessage("Preferences FEATNESS synchronisees dans Supabase.");
-    } catch (error) {
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Impossible de sauvegarder les preferences.",
-      );
-    }
-  }
-
-  async function handleGenerateQr() {
-    if (!supabaseClient || !session?.user || !profile?.onboardingCompleted) {
-      setFeedbackMessage("Complete d'abord ton profil FEATNESS avant de generer un QR.");
-      return;
-    }
-
-    setIsBusy(true);
-    setFeedbackMessage(null);
-
-    try {
-      await createSessionFlow(
-        {
-          sport,
-          intensity,
-          goal,
-          durationMin: Number(durationMin) || 0,
-          weightKg: Number(weightKg) || 0,
-        },
-        recommendation,
-        "QR FEATNESS genere. Les plats recommandes sont maintenant visibles sous le QR.",
-      );
-    } catch (error) {
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Generation du QR impossible.",
-      );
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function handleRunDemoSession() {
-    if (!supabaseClient || !session?.user) {
-      setFeedbackMessage("Connecte-toi d'abord pour lancer une seance test.");
-      return;
-    }
-
-    const demoWorkout: UserWorkoutInput = {
-      sport: "strength",
-      intensity: "moderate",
-      goal: "recovery",
-      durationMin: 42,
-      weightKg: Number(weightKg) || 78,
-    };
-
-    setIsBusy(true);
-    setFeedbackMessage(null);
-
-    try {
-      let nextProfile = profile;
-
-      if (!profile?.onboardingCompleted) {
-        nextProfile = await saveProfile(supabaseClient, session.user.id, {
-          email: session.user.email ?? "",
-          fullName: fullName.trim() || "Utilisateur FEATNESS Demo",
-          weightKg: demoWorkout.weightKg,
-          gymName: gymName.trim() || "FEATNESS Demo Club",
-        });
-
-        setProfile(nextProfile);
-        setFullName(nextProfile.fullName ?? fullName);
-        setGymName(nextProfile.gymName ?? gymName);
-        setWeightKg(String(nextProfile.weightKg ?? demoWorkout.weightKg));
-      }
-
-      const profileWithPreferences = await saveUserPreferences(
-        supabaseClient,
-        session.user.id,
-        {
-          preferredSport: demoWorkout.sport,
-          preferredGoal: demoWorkout.goal,
-          favoriteMealIds: nextProfile?.favoriteMealIds ?? profile?.favoriteMealIds ?? [],
-        },
-      );
-
-      setProfile(profileWithPreferences);
-      setSport(demoWorkout.sport);
-      setIntensity(demoWorkout.intensity);
-      setGoal(demoWorkout.goal);
-      setDurationMin(String(demoWorkout.durationMin));
-
-      const demoRecommendation = buildNutritionRecommendation(demoWorkout);
+      setSport(suggestion.sport);
+      setIntensity(suggestion.intensity);
+      setGoal(suggestion.goal);
 
       await createSessionFlow(
-        demoWorkout,
-        demoRecommendation,
-        "Seance test lancee. QR genere, plats proposes et detail repas prets pour la demo.",
+        workout,
+        buildNutritionRecommendation(workout),
+        `${suggestion.title} lancee. Tes 3 plats recommandes sont deja proposes juste en dessous.`,
       );
     } catch (error) {
       setFeedbackMessage(
-        error instanceof Error ? error.message : "Seance test impossible.",
+        error instanceof Error ? error.message : "Impossible de lancer cette seance.",
       );
     } finally {
       setIsBusy(false);
@@ -777,20 +621,53 @@ export default function App() {
         activeSession.id,
         selectedMeal.id,
       );
+      await cancelActiveTokens(supabaseClient, session.user.id);
+      const nextToken = await createDispenseToken(
+        supabaseClient,
+        session.user.id,
+        updatedSession.id,
+      );
 
       setActiveSession(updatedSession);
+      setActiveToken(nextToken);
       setHistory((previousHistory) =>
         previousHistory.map((sessionItem) =>
           sessionItem.id === updatedSession.id ? updatedSession : sessionItem,
         ),
       );
       setFeedbackMessage(
-        `${selectedMeal.name} retenu pour cette seance. Le choix est maintenant synchronise dans Supabase.`,
+        `${selectedMeal.name} retenu. Le choix est synchronise et ton QR FEATNESS est pret.`,
       );
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Impossible d'enregistrer le choix du repas.",
       );
+    }
+  }
+
+  async function handleGenerateQr() {
+    if (!activeSession?.selectedMealBlendId || !supabaseClient || !session?.user) {
+      setFeedbackMessage("Choisis d'abord ton plat avant de generer le QR.");
+      return;
+    }
+
+    try {
+      setIsBusy(true);
+      setFeedbackMessage(null);
+      await cancelActiveTokens(supabaseClient, session.user.id);
+      const nextToken = await createDispenseToken(
+        supabaseClient,
+        session.user.id,
+        activeSession.id,
+      );
+      setActiveToken(nextToken);
+      setFeedbackMessage("QR FEATNESS genere. Tu peux maintenant finaliser sur la borne.");
+    } catch (error) {
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Impossible de generer le QR.",
+      );
+    } finally {
+      setIsBusy(false);
     }
   }
 
@@ -805,10 +682,10 @@ export default function App() {
             <View style={styles.heroGlowGold} />
             <View style={styles.heroGlowMint} />
             <Text style={styles.eyebrow}>FEATNESS Mobile</Text>
-            <Text style={styles.title}>Coach nutrition post-effort</Text>
+            <Text style={styles.title}>Ton plat en quelques clics</Text>
             <Text style={styles.subtitle}>
-              Un parcours unique pour ton profil, ta seance, ton QR FEATNESS et
-              les repas recommandes les plus coherents avec ton objectif.
+              Profil sante, seances utiles, recommandation repas. FEATNESS va droit au but
+              pour te proposer rapidement le bon plat.
             </Text>
             <View style={styles.heroStats}>
               <View style={styles.heroPill}>
@@ -834,72 +711,14 @@ export default function App() {
         </AnimatedSection>
 
         <AnimatedSection delay={80}>
-          <View style={styles.journeyCard}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionEyebrow}>Parcours</Text>
-                <Text style={styles.sectionTitle}>Ou tu en es dans le flux</Text>
-              </View>
-              <View style={styles.progressPill}>
-                <Text style={styles.progressPillText}>
-                  {journeySteps.filter((step) => step.done).length}/{journeySteps.length}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.journeyGrid}>
-              {journeySteps.map((step, index) => (
-                <View
-                  key={step.key}
-                  style={[styles.journeyStep, step.done && styles.journeyStepDone]}
-                >
-                  <View style={[styles.journeyIndex, step.done && styles.journeyIndexDone]}>
-                    <Text style={[styles.journeyIndexText, step.done && styles.journeyIndexTextDone]}>
-                      {index + 1}
-                    </Text>
-                  </View>
-                  <View style={styles.journeyCopy}>
-                    <Text style={styles.journeyTitle}>{step.title}</Text>
-                    <Text style={styles.journeyDescription}>{step.description}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+          <View style={styles.nextActionCard}>
+            <Text style={styles.sectionEyebrow}>Statut rapide</Text>
+            <Text style={styles.nextActionTitle}>Le chemin le plus court vers ton repas</Text>
+            <Text style={styles.nextActionDescription}>{quickStatus}</Text>
           </View>
         </AnimatedSection>
 
         <AnimatedSection delay={140}>
-          <View style={styles.nextActionCard}>
-            <Text style={styles.sectionEyebrow}>{nextAction.eyebrow}</Text>
-            <Text style={styles.nextActionTitle}>{nextAction.title}</Text>
-            <Text style={styles.nextActionDescription}>{nextAction.description}</Text>
-            <Text style={styles.nextActionCta}>{nextAction.cta}</Text>
-          </View>
-        </AnimatedSection>
-
-        <AnimatedSection delay={170}>
-          <View style={styles.storyCard}>
-            <Text style={styles.sectionEyebrow}>
-              {session?.user ? "Pourquoi ce flux compte" : "Avant de commencer"}
-            </Text>
-            <Text style={styles.storyTitle}>
-              {session?.user
-                ? "FEATNESS relie ton effort a une decision nutrition concrete"
-                : "Trois promesses produit en une seule experience mobile"}
-            </Text>
-            <View style={styles.storyList}>
-              {storyHighlights.map((item, index) => (
-                <View key={item} style={styles.storyItem}>
-                  <View style={styles.storyBullet}>
-                    <Text style={styles.storyBulletText}>{index + 1}</Text>
-                  </View>
-                  <Text style={styles.storyCopy}>{item}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </AnimatedSection>
-
-        <AnimatedSection delay={200}>
           <AuthCard
             email={email}
             password={password}
@@ -912,12 +731,12 @@ export default function App() {
             isBusy={isBusy}
             isConfigured={supabaseEnabled}
             sessionEmail={session?.user.email ?? null}
-            message={feedbackMessage}
+            message={null}
           />
         </AnimatedSection>
 
         {feedbackMessage ? (
-          <AnimatedSection delay={240}>
+          <AnimatedSection delay={170}>
             <View
               style={[
                 styles.feedbackBanner,
@@ -942,58 +761,32 @@ export default function App() {
 
         {session?.user ? (
           <>
-            <AnimatedSection delay={280}>
+            <AnimatedSection delay={220}>
               <ProfileCard
-                fullName={fullName}
+                age={age}
                 weightKg={weightKg}
-                gymName={gymName}
-                onFullNameChange={setFullName}
+                heightCm={heightCm}
+                primaryObjective={primaryObjective}
+                bmiInsight={bmiInsight}
+                onAgeChange={setAge}
                 onWeightChange={setWeightKg}
-                onGymChange={setGymName}
+                onHeightChange={setHeightCm}
+                onObjectiveChange={setPrimaryObjective}
                 onSave={() => void handleSaveProfile()}
                 isBusy={isBusy}
                 isComplete={Boolean(profile?.onboardingCompleted)}
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={320}>
-              <PreferencesCard
-                preferredSport={profile?.preferredSport ?? null}
-                preferredGoal={profile?.preferredGoal ?? null}
-                preferredGymName={profile?.gymName ?? null}
-                favoriteCount={profile?.favoriteMealIds.length ?? 0}
-                onSaveCurrent={() => void handleSaveCurrentPreferences()}
-              />
-            </AnimatedSection>
-
-            <AnimatedSection delay={360}>
-              <RecommendationCard
-                sport={sport}
-                intensity={intensity}
-                goal={goal}
-                durationMin={durationMin}
-                weightKg={weightKg}
-                recommendation={recommendation}
-                onSportChange={setSport}
-                onIntensityChange={setIntensity}
-                onGoalChange={setGoal}
-                onDurationChange={setDurationMin}
-                onWeightChange={setWeightKg}
-                onRunDemoSession={() => void handleRunDemoSession()}
-                isBusy={isBusy}
-              />
-            </AnimatedSection>
-
-            <AnimatedSection delay={400}>
-              <ActiveTokenCard
-                token={activeToken}
-                session={activeSession}
-                onGenerate={() => void handleGenerateQr()}
+            <AnimatedSection delay={260}>
+              <SessionSuggestionsCard
+                suggestions={sessionSuggestions}
+                onStartSuggestion={(suggestion) => void handleStartSuggestedSession(suggestion)}
                 isBusy={isBusy || showProfileOnboarding}
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={440}>
+            <AnimatedSection delay={300}>
               <SuggestedMealsCard
                 meals={suggestedMeals}
                 goal={activeSession?.workout.goal ?? goal}
@@ -1003,7 +796,7 @@ export default function App() {
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={480}>
+            <AnimatedSection delay={340}>
               <MealDetailCard
                 meal={selectedMeal}
                 goal={activeSession?.workout.goal ?? goal}
@@ -1013,23 +806,22 @@ export default function App() {
               />
             </AnimatedSection>
 
-            <AnimatedSection delay={520}>
-              <HistoryCard sessions={history} mealNamesById={mealNamesById} />
-            </AnimatedSection>
+            {activeSession ? (
+              <AnimatedSection delay={380}>
+                <ActiveTokenCard
+                  token={activeToken}
+                  session={activeSession}
+                  onGenerate={() => void handleGenerateQr()}
+                  isBusy={isBusy || showProfileOnboarding}
+                />
+              </AnimatedSection>
+            ) : null}
 
-            <AnimatedSection delay={560}>
-              <View style={styles.footerCard}>
-                <Text style={styles.sectionEyebrow}>Suite</Text>
-                <Text style={styles.footerTitle}>Continue a enrichir ton profil FEATNESS</Text>
-                <Text style={styles.footerCopy}>
-                  Plus tu sauvegardes de seances et de favoris, plus le dashboard et les futures experiences
-                  FEATNESS deviennent utiles pour le suivi produit.
-                </Text>
-                <Pressable style={styles.footerGhostButton}>
-                  <Text style={styles.footerGhostButtonText}>Historique et preferences deja synchronises</Text>
-                </Pressable>
-              </View>
-            </AnimatedSection>
+            {history.length > 0 ? (
+              <AnimatedSection delay={420}>
+                <HistoryCard sessions={history} mealNamesById={mealNamesById} />
+              </AnimatedSection>
+            ) : null}
           </>
         ) : null}
       </ScrollView>

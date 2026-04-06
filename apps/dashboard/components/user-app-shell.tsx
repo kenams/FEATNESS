@@ -280,7 +280,10 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
       const savedProfile = await saveProfile(supabase, session.user.id, {
         email: session.user.email ?? "",
         fullName: fullName.trim(),
+        age: profile?.age ?? 30,
         weightKg: Number(weightKg) || 0,
+        heightCm: profile?.heightCm ?? 175,
+        primaryObjective: profile?.primaryObjective ?? "maintain",
         gymName: gymName.trim(),
       });
 

@@ -34,8 +34,11 @@ export function ActiveTokenCard({
 }: ActiveTokenCardProps) {
   const pulse = useRef(new Animated.Value(0)).current;
   const nextStepCopy = token
-    ? "Ton QR est pret. Consulte maintenant les plats proposes juste en dessous et valide ton choix prefere."
-    : "Genere le QR apres ta seance pour figer la recommandation FEATNESS et debloquer les plats proposes.";
+    ? "Ton QR est pret. Tu peux maintenant passer a la borne avec ton repas deja choisi."
+    : session?.selectedMealBlendId
+      ? "Ton plat est valide. Genere maintenant le QR en un clic si tu veux finaliser sur la borne."
+      : "Choisis d'abord ton plat. Le QR ne vient qu'apres, pour garder un parcours simple.";
+  const canGenerate = Boolean(session?.selectedMealBlendId);
 
   useEffect(() => {
     if (!token) {
@@ -83,8 +86,8 @@ export function ActiveTokenCard({
       <Text style={styles.eyebrow}>Qr</Text>
       <Text style={styles.cardTitle}>QR FEATNESS</Text>
       <Text style={styles.helperText}>
-        Le QR code reste valide 30 minutes. La borne valide l'UUID, le statut
-        et l'expiration avant preparation.
+        Le QR code reste valide 30 minutes. La borne valide l'UUID, le statut et
+        l'expiration avant preparation.
       </Text>
       <View style={styles.callout}>
         <Text style={styles.calloutEyebrow}>Etape suivante</Text>
@@ -92,12 +95,19 @@ export function ActiveTokenCard({
       </View>
 
       <Pressable
-        style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
+        style={[
+          styles.primaryButton,
+          (isBusy || !canGenerate) && styles.buttonDisabled,
+        ]}
         onPress={onGenerate}
-        disabled={isBusy}
+        disabled={isBusy || !canGenerate}
       >
         <Text style={styles.primaryButtonText}>
-          {isBusy ? "Generation..." : "Generer un QR code"}
+          {isBusy
+            ? "Generation..."
+            : canGenerate
+              ? "Generer mon QR"
+              : "Choisis d'abord ton plat"}
         </Text>
       </Pressable>
 
@@ -135,7 +145,7 @@ export function ActiveTokenCard({
         </View>
       ) : (
         <Text style={styles.emptyText}>
-          Aucun QR actif. Genere une seance pour lancer la distribution borne.
+          Aucun QR actif. Valide d'abord ton plat, puis genere le QR seulement si tu en as besoin.
         </Text>
       )}
     </View>

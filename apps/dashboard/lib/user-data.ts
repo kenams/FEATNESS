@@ -5,6 +5,7 @@ import {
   type DispenseTokenRecord,
   type GoalKey,
   type NutritionRecommendation,
+  type PrimaryObjectiveKey,
   type SportKey,
   type UserProfile,
   type UserWorkoutInput,
@@ -24,7 +25,10 @@ function mapProfileRow(row: Record<string, unknown>): UserProfile {
     id: String(row.id),
     email: String(row.email ?? ""),
     fullName: (row.full_name as string | null) ?? null,
+    age: row.age == null ? null : Number(row.age),
     weightKg: row.weight_kg == null ? null : Number(row.weight_kg),
+    heightCm: row.height_cm == null ? null : Number(row.height_cm),
+    primaryObjective: (row.primary_objective as PrimaryObjectiveKey | null) ?? null,
     gymName: (row.gym_name as string | null) ?? null,
     preferredSport: (row.preferred_sport as SportKey | null) ?? null,
     preferredGoal: (row.preferred_goal as GoalKey | null) ?? null,
@@ -117,7 +121,10 @@ export async function saveProfile(
   payload: {
     email: string;
     fullName: string;
+    age: number;
     weightKg: number;
+    heightCm: number;
+    primaryObjective: PrimaryObjectiveKey;
     gymName: string;
   },
 ): Promise<UserProfile> {
@@ -127,7 +134,10 @@ export async function saveProfile(
       id: userId,
       email: payload.email,
       full_name: payload.fullName,
+      age: payload.age,
       weight_kg: payload.weightKg,
+      height_cm: payload.heightCm,
+      primary_objective: payload.primaryObjective,
       gym_name: payload.gymName,
       onboarding_completed: true,
     })

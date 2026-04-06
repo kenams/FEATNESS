@@ -1,72 +1,119 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import type { BmiInsight, PrimaryObjectiveKey } from "@featness/shared";
+
 import { mobileShadow, theme } from "../theme";
 
+const OBJECTIVES: Array<{ value: PrimaryObjectiveKey; label: string }> = [
+  { value: "lose_weight", label: "Perdre du poids" },
+  { value: "maintain", label: "Rester en forme" },
+  { value: "gain_muscle", label: "Prendre du muscle" },
+  { value: "improve_endurance", label: "Ameliorer l'endurance" },
+];
+
 type ProfileCardProps = {
-  fullName: string;
+  age: string;
   weightKg: string;
-  gymName: string;
-  onFullNameChange: (value: string) => void;
+  heightCm: string;
+  primaryObjective: PrimaryObjectiveKey;
+  bmiInsight: BmiInsight | null;
+  onAgeChange: (value: string) => void;
   onWeightChange: (value: string) => void;
-  onGymChange: (value: string) => void;
+  onHeightChange: (value: string) => void;
+  onObjectiveChange: (value: PrimaryObjectiveKey) => void;
   onSave: () => void;
   isBusy: boolean;
   isComplete: boolean;
 };
 
 export function ProfileCard({
-  fullName,
+  age,
   weightKg,
-  gymName,
-  onFullNameChange,
+  heightCm,
+  primaryObjective,
+  bmiInsight,
+  onAgeChange,
   onWeightChange,
-  onGymChange,
+  onHeightChange,
+  onObjectiveChange,
   onSave,
   isBusy,
   isComplete,
 }: ProfileCardProps) {
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>Profil</Text>
+      <Text style={styles.eyebrow}>Inscription</Text>
       <Text style={styles.cardTitle}>
-        {isComplete ? "Profil FEATNESS" : "Onboarding FEATNESS"}
+        {isComplete ? "Ton profil sante FEATNESS" : "Complete ton profil en 30 secondes"}
       </Text>
       <Text style={styles.helperText}>
-        {isComplete
-          ? "Ton profil pilote la recommandation et le QR remis a la borne."
-          : "Le trigger Supabase doit creer le profil automatiquement. Ici tu completes les champs necessaires a l'onboarding."}
+        Age, taille, poids et objectif suffisent pour calculer l&apos;IMC et te proposer
+        les bonnes seances avant ton plat.
       </Text>
 
-      <View style={styles.statusRow}>
-        <View style={[styles.statusPill, isComplete && styles.statusPillDone]}>
-          <Text style={[styles.statusPillText, isComplete && styles.statusPillTextDone]}>
-            {isComplete ? "Onboarding termine" : "Profil a completer"}
-          </Text>
-        </View>
+      <View style={styles.grid}>
+        <TextInput
+          placeholder="Age"
+          placeholderTextColor="#88a099"
+          keyboardType="numeric"
+          value={age}
+          onChangeText={onAgeChange}
+          style={styles.input}
+        />
+        <TextInput
+          placeholder="Poids (kg)"
+          placeholderTextColor="#88a099"
+          keyboardType="numeric"
+          value={weightKg}
+          onChangeText={onWeightChange}
+          style={styles.input}
+        />
+        <TextInput
+          placeholder="Taille (cm)"
+          placeholderTextColor="#88a099"
+          keyboardType="numeric"
+          value={heightCm}
+          onChangeText={onHeightChange}
+          style={styles.input}
+        />
       </View>
 
-      <TextInput
-        placeholder="Nom complet"
-        placeholderTextColor="#88a099"
-        value={fullName}
-        onChangeText={onFullNameChange}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Poids (kg)"
-        placeholderTextColor="#88a099"
-        keyboardType="numeric"
-        value={weightKg}
-        onChangeText={onWeightChange}
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Salle / club"
-        placeholderTextColor="#88a099"
-        value={gymName}
-        onChangeText={onGymChange}
-        style={styles.input}
-      />
+      <View style={styles.objectiveList}>
+        {OBJECTIVES.map((objective) => (
+          <Pressable
+            key={objective.value}
+            style={[
+              styles.objectiveChip,
+              primaryObjective === objective.value && styles.objectiveChipActive,
+            ]}
+            onPress={() => onObjectiveChange(objective.value)}
+          >
+            <Text
+              style={[
+                styles.objectiveChipText,
+                primaryObjective === objective.value && styles.objectiveChipTextActive,
+              ]}
+            >
+              {objective.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.bmiPanel}>
+        <Text style={styles.bmiEyebrow}>IMC</Text>
+        {bmiInsight ? (
+          <>
+            <Text style={styles.bmiValue}>{bmiInsight.bmi}</Text>
+            <Text style={styles.bmiLabel}>{bmiInsight.label}</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.bmiValue}>--</Text>
+            <Text style={styles.bmiLabel}>Renseigne taille et poids</Text>
+          </>
+        )}
+      </View>
 
       <Pressable
         style={[styles.primaryButton, isBusy && styles.buttonDisabled]}
@@ -74,7 +121,7 @@ export function ProfileCard({
         disabled={isBusy}
       >
         <Text style={styles.primaryButtonText}>
-          {isBusy ? "Enregistrement..." : "Sauvegarder le profil"}
+          {isBusy ? "Enregistrement..." : "Valider mon profil"}
         </Text>
       </Pressable>
     </View>
@@ -107,30 +154,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
-  statusRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  statusPill: {
-    borderRadius: theme.radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  statusPillDone: {
-    backgroundColor: theme.colors.mintSoft,
-    borderColor: "rgba(111,212,168,0.24)",
-  },
-  statusPillText: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  statusPillTextDone: {
-    color: theme.colors.mint,
+  grid: {
+    gap: 10,
   },
   input: {
     backgroundColor: theme.colors.surfaceMuted,
@@ -140,6 +165,54 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  objectiveList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  objectiveChip: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  objectiveChipActive: {
+    backgroundColor: theme.colors.gold,
+    borderColor: theme.colors.gold,
+  },
+  objectiveChipText: {
+    color: theme.colors.text,
+    fontWeight: "600",
+  },
+  objectiveChipTextActive: {
+    color: theme.colors.ink,
+  },
+  bmiPanel: {
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 4,
+  },
+  bmiEyebrow: {
+    color: "#f1d893",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.3,
+    fontWeight: "700",
+  },
+  bmiValue: {
+    color: theme.colors.text,
+    fontSize: 34,
+    fontWeight: "700",
+  },
+  bmiLabel: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
   },
   primaryButton: {
     backgroundColor: theme.colors.gold,
