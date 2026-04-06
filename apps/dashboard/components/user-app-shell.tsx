@@ -8,9 +8,11 @@ import type { Session } from "@supabase/supabase-js";
 
 import {
   buildNutritionRecommendation,
+  buildWorkoutRecoveryInsight,
   buildSessionSuggestions,
   calculateBmi,
   isExpired,
+  rankMealsForWorkout,
   type DispenseTokenRecord,
   type GoalKey,
   type PrimaryObjectiveKey,
@@ -44,6 +46,10 @@ type UserAppShellProps = {
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+  fitLabel: "ideal" | "solide" | "leger";
+  fitReason: string;
+  fitChips: string[];
+  isRecommended: boolean;
 };
 
 const OBJECTIVE_LABELS: Record<PrimaryObjectiveKey, string> = {
@@ -72,58 +78,6 @@ function formatRemaining(token: DispenseTokenRecord): string {
   return `${minutes} min restantes`;
 }
 
-function buildSuggestedMeals(
-  meals: DrinkBlendRecord[],
-  goal: GoalKey,
-  recommendedBlend: string,
-): SuggestedMeal[] {
-  return [...meals]
-    .map((meal) => {
-      let score = 0;
-
-      if (meal.targetGoal === goal) {
-        score += 3;
-      }
-
-      if (meal.name === recommendedBlend) {
-        score += 5;
-      }
-
-      return {
-        ...meal,
-        score,
-      };
-    })
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-
-      return left.priceEur - right.priceEur;
-    })
-    .slice(0, 3)
-    .map((meal, index) => ({
-      ...meal,
-      rank: index + 1,
-    }));
-}
-
-function getReason(rank: number, meal: SuggestedMeal, goal: GoalKey): string {
-  if (meal.rank === 1 && meal.targetGoal === goal) {
-    return "Le meilleur alignement entre ta seance et le catalogue FEATNESS.";
-  }
-
-  if (meal.targetGoal === goal) {
-    return "Ce plat reste bien cale sur l'objectif de ta seance.";
-  }
-
-  if (rank === 1) {
-    return "Le meilleur choix disponible meme si le catalogue est partiel.";
-  }
-
-  return "Bonne alternative si tu veux varier sans sortir du bon flux.";
-}
-
 function getEffortLabel(category: DrinkBlendRecord["effortCategory"]): string {
   switch (category) {
     case "light":
@@ -137,7 +91,7 @@ function getEffortLabel(category: DrinkBlendRecord["effortCategory"]): string {
   }
 }
 
-function groupMealsByEffort(meals: DrinkBlendRecord[]) {
+function groupMealsByEffort(meals: SuggestedMeal[]) {
   return {
     light: meals.filter((meal) => meal.effortCategory === "light"),
     medium: meals.filter((meal) => meal.effortCategory === "medium"),
@@ -226,21 +180,38 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     [heightCm, weightKg],
   );
 
-  const suggestedMeals = useMemo(() => {
+  const sessionInsight = useMemo(
+    () =>
+      activeSession
+        ? buildWorkoutRecoveryInsight(
+            activeSession.workout,
+            profile?.primaryObjective ?? primaryObjective,
+          )
+        : null,
+    [activeSession, primaryObjective, profile?.primaryObjective],
+  );
+
+  const rankedMeals = useMemo(() => {
     if (!activeSession) {
       return [];
     }
 
-    return buildSuggestedMeals(
+    return rankMealsForWorkout(
       meals,
-      activeSession.workout.goal,
+      activeSession.workout,
+      profile?.primaryObjective ?? primaryObjective,
       activeSession.recommendation.recommendedBlend,
     );
-  }, [activeSession, meals]);
+  }, [activeSession, meals, primaryObjective, profile?.primaryObjective]);
+  const suggestedMeals = useMemo(() => rankedMeals.slice(0, 3), [rankedMeals]);
 
   const selectedMeal = useMemo(
-    () => meals.find((meal) => meal.id === selectedMealId) ?? suggestedMeals[0] ?? meals[0] ?? null,
-    [meals, selectedMealId, suggestedMeals],
+    () =>
+      rankedMeals.find((meal) => meal.id === selectedMealId) ??
+      suggestedMeals[0] ??
+      rankedMeals[0] ??
+      null,
+    [rankedMeals, selectedMealId, suggestedMeals],
   );
 
   const hasOnboarding = Boolean(profile?.onboardingCompleted);
@@ -295,8 +266,8 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
     [selectedMeal?.id, suggestedMeals],
   );
   const visibleOtherMeals = useMemo(
-    () => meals.filter((meal) => meal.id !== selectedMeal?.id && !recommendedMealIds.has(meal.id)),
-    [meals, recommendedMealIds, selectedMeal?.id],
+    () => rankedMeals.filter((meal) => meal.id !== selectedMeal?.id && !recommendedMealIds.has(meal.id)),
+    [rankedMeals, recommendedMealIds, selectedMeal?.id],
   );
   const recommendedGroups = useMemo(
     () => groupMealsByEffort(visibleRecommendedMeals),
@@ -876,7 +847,23 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                         <span className="rounded-full bg-white px-3 py-1">
                           {GOAL_LABELS[suggestion.goal]}
                         </span>
+                        {suggestion.estimatedCaloriesBurned ? (
+                          <span className="rounded-full bg-white px-3 py-1">
+                            {suggestion.estimatedCaloriesBurned} kcal
+                          </span>
+                        ) : null}
+                        {suggestion.effortCategory ? (
+                          <span className="rounded-full bg-white px-3 py-1">
+                            {getEffortLabel(suggestion.effortCategory)}
+                          </span>
+                        ) : null}
                       </div>
+                      {suggestion.focusTitle ? (
+                        <div className="mt-4 rounded-[18px] border border-featness-gold/30 bg-featness-gold/10 p-4">
+                          <p className="text-sm font-semibold text-featness-gold">{suggestion.focusTitle}</p>
+                          <p className="mt-1 text-sm text-featness-muted">{suggestion.focusCopy}</p>
+                        </div>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => void handleStartSuggestedSession(suggestion)}
@@ -902,6 +889,26 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                     Plats
                   </p>
                   <h2 className="mt-2 text-2xl font-semibold">Le plat valide passe en premier</h2>
+                  {sessionInsight ? (
+                    <div className="mt-4 rounded-[20px] border border-black/10 bg-[#f8faf9] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-featness-gold">
+                        Resume de ta seance
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-featness-ink">{sessionInsight.focusTitle}</p>
+                      <p className="mt-2 text-sm text-featness-muted">{sessionInsight.focusCopy}</p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full bg-white px-3 py-1">
+                          {sessionInsight.caloriesBurnedEstimate} kcal estimees
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1">
+                          {getEffortLabel(sessionInsight.effortCategory)}
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1">
+                          {GOAL_LABELS[activeSession?.workout.goal ?? "recovery"]}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 {activeSession?.selectedMealBlendId ? (
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
@@ -988,9 +995,7 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                                         <h4 className="mt-3 text-lg font-semibold text-featness-ink">{meal.name}</h4>
                                         <p className="mt-2 text-sm text-featness-muted">{meal.description}</p>
                                         <p className="mt-3 text-sm text-featness-muted">
-                                          {section.recommended
-                                            ? getReason((meal as SuggestedMeal).rank, meal as SuggestedMeal, activeSession?.workout.goal ?? "recovery")
-                                            : `Alternative disponible pour ${getEffortLabel(meal.effortCategory).toLowerCase()}.`}
+                                          {meal.fitReason}
                                         </p>
                                         <div className="mt-4 flex flex-wrap gap-2 text-xs">
                                           <span className="rounded-full bg-white px-3 py-1">
@@ -1012,6 +1017,11 @@ export function UserAppShell({ initialProfile }: UserAppShellProps) {
                                               Selectionne
                                             </span>
                                           ) : null}
+                                          {meal.fitChips.map((chip) => (
+                                            <span key={`${meal.id}-${chip}`} className="rounded-full bg-white px-3 py-1">
+                                              {chip}
+                                            </span>
+                                          ))}
                                         </div>
                                       </div>
                                       <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-featness-ink">

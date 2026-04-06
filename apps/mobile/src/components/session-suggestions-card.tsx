@@ -11,6 +11,19 @@ type SessionSuggestionsCardProps = {
   activeSuggestionKey: string | null;
 };
 
+function getEffortLabel(category?: SessionSuggestion["effortCategory"]): string {
+  switch (category) {
+    case "light":
+      return "Effort leger";
+    case "medium":
+      return "Effort moyen";
+    case "intense":
+      return "Effort intense";
+    default:
+      return "Effort";
+  }
+}
+
 export function SessionSuggestionsCard({
   suggestions,
   onStartSuggestion,
@@ -40,8 +53,13 @@ export function SessionSuggestionsCard({
           <Text style={styles.selectedSummaryEyebrow}>Seance retenue</Text>
           <Text style={styles.selectedSummaryTitle}>{selectedSuggestion.title}</Text>
           <Text style={styles.selectedSummaryCopy}>
-            {selectedSuggestion.durationMin} min • {selectedSuggestion.sport} • {selectedSuggestion.goal}
+            {selectedSuggestion.durationMin} min | {selectedSuggestion.sport} | {selectedSuggestion.goal}
           </Text>
+          {selectedSuggestion.estimatedCaloriesBurned ? (
+            <Text style={styles.selectedSummaryInsight}>
+              {selectedSuggestion.estimatedCaloriesBurned} kcal estimees | {getEffortLabel(selectedSuggestion.effortCategory)}
+            </Text>
+          ) : null}
           <View style={styles.selectedSummaryBadge}>
             <Text style={styles.selectedSummaryBadgeText}>Prise en compte</Text>
           </View>
@@ -76,6 +94,13 @@ export function SessionSuggestionsCard({
               <Text style={styles.suggestionDescription}>{suggestion.description}</Text>
               <Text style={styles.whyText}>{suggestion.why}</Text>
 
+              {suggestion.focusTitle ? (
+                <View style={styles.focusCard}>
+                  <Text style={styles.focusTitle}>{suggestion.focusTitle}</Text>
+                  <Text style={styles.focusCopy}>{suggestion.focusCopy}</Text>
+                </View>
+              ) : null}
+
               <View style={styles.tags}>
                 <View style={styles.tag}>
                   <Text style={styles.tagText}>{suggestion.sport}</Text>
@@ -83,6 +108,16 @@ export function SessionSuggestionsCard({
                 <View style={styles.tag}>
                   <Text style={styles.tagText}>{suggestion.goal}</Text>
                 </View>
+                {suggestion.estimatedCaloriesBurned ? (
+                  <View style={styles.tag}>
+                    <Text style={styles.tagText}>{suggestion.estimatedCaloriesBurned} kcal</Text>
+                  </View>
+                ) : null}
+                {suggestion.effortCategory ? (
+                  <View style={styles.tag}>
+                    <Text style={styles.tagText}>{getEffortLabel(suggestion.effortCategory)}</Text>
+                  </View>
+                ) : null}
               </View>
 
               <Pressable
@@ -161,6 +196,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textTransform: "capitalize",
   },
+  selectedSummaryInsight: {
+    color: theme.colors.text,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
   selectedSummaryBadge: {
     alignSelf: "flex-start",
     borderRadius: theme.radius.pill,
@@ -237,6 +277,22 @@ const styles = StyleSheet.create({
   whyText: {
     color: theme.colors.textMuted,
     lineHeight: 19,
+  },
+  focusCard: {
+    borderRadius: 16,
+    padding: 12,
+    backgroundColor: theme.colors.goldSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    gap: 4,
+  },
+  focusTitle: {
+    color: "#f1d893",
+    fontWeight: "700",
+  },
+  focusCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 18,
   },
   tags: {
     flexDirection: "row",

@@ -10,6 +10,10 @@ import { mobileShadow, theme } from "../theme";
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+  fitLabel: "ideal" | "solide" | "leger";
+  fitReason: string;
+  fitChips: string[];
+  isRecommended: boolean;
 };
 
 type SuggestedMealsCardProps = {
@@ -20,6 +24,10 @@ type SuggestedMealsCardProps = {
   objectiveTitle: string;
   objectiveCopy: string;
   menuTitle: string;
+  sessionCalories: number;
+  sessionEffortLabel: string;
+  sessionFocusTitle: string;
+  sessionFocusCopy: string;
   selectedMealId: string | null;
   favoriteMealIds: string[];
   onSelectMeal: (mealId: string) => void;
@@ -35,12 +43,6 @@ const GOAL_LABELS: Record<GoalKey, string> = {
   hydration: "Hydratation",
   recovery: "Recuperation",
   performance: "Performance",
-};
-
-const GOAL_COPY: Record<GoalKey, string> = {
-  hydration: "Hydrate vite avec un apport leger et utile apres l'effort.",
-  recovery: "Remonte plus vite avec des proteines et glucides clairs.",
-  performance: "Recharge l'energie avant une reprise ou une double seance.",
 };
 
 function formatCurrency(value: number): string {
@@ -121,6 +123,10 @@ export function SuggestedMealsCard({
   objectiveTitle,
   objectiveCopy,
   menuTitle,
+  sessionCalories,
+  sessionEffortLabel,
+  sessionFocusTitle,
+  sessionFocusCopy,
   selectedMealId,
   favoriteMealIds,
   onSelectMeal,
@@ -175,6 +181,17 @@ export function SuggestedMealsCard({
         Vert = FEATNESS recommande pour ta seance. Rouge = disponible a la borne mais moins prioritaire.
       </Text>
 
+      <View style={styles.sessionSummaryCard}>
+        <Text style={styles.sessionSummaryEyebrow}>Resume de ta seance</Text>
+        <Text style={styles.sessionSummaryTitle}>{sessionFocusTitle}</Text>
+        <Text style={styles.sessionSummaryCopy}>{sessionFocusCopy}</Text>
+        <View style={styles.primaryTags}>
+          <Tag label={`${sessionCalories} kcal estimees`} />
+          <Tag label={sessionEffortLabel} />
+          <Tag label={GOAL_LABELS[goal]} />
+        </View>
+      </View>
+
       <View style={styles.selectedCard}>
         <View style={styles.selectedTopRow}>
           <MealThumb meal={selectedMeal} large />
@@ -202,7 +219,16 @@ export function SuggestedMealsCard({
 
         <View style={styles.fastReason}>
           <Text style={styles.fastReasonTitle}>Pourquoi FEATNESS le pousse</Text>
-          <Text style={styles.fastReasonCopy}>{GOAL_COPY[goal]}</Text>
+          <Text style={styles.fastReasonCopy}>{selectedMeal.fitReason}</Text>
+          {selectedMeal.fitChips.length > 0 ? (
+            <View style={styles.chipList}>
+              {selectedMeal.fitChips.map((chip) => (
+                <View key={chip} style={styles.chip}>
+                  <Text style={styles.chipText}>{chip}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.compactMetrics}>
@@ -419,6 +445,7 @@ function MealListItem({
             <Text style={styles.listDescription} numberOfLines={2}>
               {meal.description}
             </Text>
+            <Text style={styles.listReason}>{meal.fitReason}</Text>
           </View>
           <Text style={styles.listPrice}>{formatCurrency(meal.priceEur)}</Text>
         </View>
@@ -532,6 +559,30 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
+  },
+  sessionSummaryCard: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 8,
+  },
+  sessionSummaryEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: "700",
+  },
+  sessionSummaryTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sessionSummaryCopy: {
+    color: theme.colors.textSoft,
+    lineHeight: 19,
   },
   selectedCard: {
     borderRadius: 22,
@@ -910,6 +961,11 @@ const styles = StyleSheet.create({
   listDescription: {
     color: theme.colors.textMuted,
     lineHeight: 18,
+  },
+  listReason: {
+    color: theme.colors.textSoft,
+    fontSize: 12,
+    lineHeight: 17,
   },
   listPrice: {
     color: "#f1d893",

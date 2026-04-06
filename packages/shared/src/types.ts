@@ -90,6 +90,10 @@ export type SessionSuggestion = {
   intensity: IntensityLevel;
   durationMin: number;
   goal: GoalKey;
+  estimatedCaloriesBurned?: number;
+  effortCategory?: "light" | "medium" | "intense";
+  focusTitle?: string;
+  focusCopy?: string;
 };
 
 export type WorkoutSessionRecord = {

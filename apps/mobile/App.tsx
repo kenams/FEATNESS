@@ -6,15 +6,16 @@ import type { Session } from "@supabase/supabase-js";
 
 import {
   buildNutritionRecommendation,
+  buildWorkoutRecoveryInsight,
   buildSessionSuggestions,
   calculateBmi,
   isExpired,
+  rankMealsForWorkout,
   type BmiInsight,
   type DispenseTokenRecord,
   type GoalKey,
   type PrimaryObjectiveKey,
   type SessionSuggestion,
-  type SportKey,
   type UserProfile,
   type UserWorkoutInput,
   type WorkoutSessionRecord,
@@ -51,6 +52,10 @@ const TEST_USER_PASSWORD = "test123456";
 type SuggestedMeal = DrinkBlendRecord & {
   rank: number;
   score: number;
+  fitLabel: "ideal" | "solide" | "leger";
+  fitReason: string;
+  fitChips: string[];
+  isRecommended: boolean;
 };
 
 type JourneyStep = {
@@ -162,42 +167,6 @@ const HOME_PROMISES: Array<{
   },
 ];
 
-function buildSuggestedMeals(
-  meals: DrinkBlendRecord[],
-  goal: GoalKey,
-  recommendedBlend: string,
-): SuggestedMeal[] {
-  return [...meals]
-    .map((meal) => {
-      let score = 0;
-
-      if (meal.targetGoal === goal) {
-        score += 3;
-      }
-
-      if (meal.name === recommendedBlend) {
-        score += 5;
-      }
-
-      return {
-        ...meal,
-        score,
-      };
-    })
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-
-      return left.priceEur - right.priceEur;
-    })
-    .slice(0, 3)
-    .map((meal, index) => ({
-      ...meal,
-      rank: index + 1,
-    }));
-}
-
 function getEffortCategoryLabel(category: DrinkBlendRecord["effortCategory"]): string {
   switch (category) {
     case "light":
@@ -209,105 +178,6 @@ function getEffortCategoryLabel(category: DrinkBlendRecord["effortCategory"]): s
     default:
       return "Effort";
   }
-}
-
-function getObjectiveHeading(
-  objective: PrimaryObjectiveKey | null,
-  sport: SportKey | null,
-): { title: string; copy: string } {
-  if (objective === "gain_muscle") {
-    return {
-      title: "Prise de muscle",
-      copy: "Plus de proteines et des glucides assez hauts pour soutenir la masse musculaire.",
-    };
-  }
-
-  if (objective === "lose_weight") {
-    return {
-      title: "Perte de poids",
-      copy: "Options plus legeres, digestes, avec de bonnes proteines pour perdre sans te vider.",
-    };
-  }
-
-  if (objective === "improve_endurance") {
-    return {
-      title: "Cardio / endurance",
-      copy: "On pousse surtout les glucides et l'hydratation pour mieux repartir apres l'effort.",
-    };
-  }
-
-  if (sport && ["running", "cycling", "swimming", "rowing"].includes(sport)) {
-    return {
-      title: "Cardio / endurance",
-      copy: "Les plats ici aident surtout a recharger l'energie et l'hydratation apres une seance cardio.",
-    };
-  }
-
-  return {
-    title: "Equilibre FEATNESS",
-    copy: "Des plats stables et complets pour rester performant sans trop te poser de questions.",
-  };
-}
-
-function buildObjectiveMeals(
-  meals: DrinkBlendRecord[],
-  objective: PrimaryObjectiveKey | null,
-  sport: SportKey | null,
-  sessionGoal: GoalKey | null,
-  recommendedBlend: string | null,
-): SuggestedMeal[] {
-  return [...meals]
-    .map((meal) => {
-      let score = 0;
-
-      if (recommendedBlend && meal.name === recommendedBlend) {
-        score += 4;
-      }
-
-      if (sessionGoal && meal.targetGoal === sessionGoal) {
-        score += 3;
-      }
-
-      if (objective === "lose_weight") {
-        if (meal.calories <= 560) score += 3;
-        if (meal.proteinG >= 28) score += 2;
-        if (meal.effortCategory === "light") score += 2;
-        if (meal.effortCategory === "medium") score += 1;
-      } else if (objective === "gain_muscle") {
-        if (meal.proteinG >= 35) score += 3;
-        if (meal.calories >= 560) score += 2;
-        if (meal.carbsG >= 55) score += 2;
-        if (meal.effortCategory !== "light") score += 2;
-      } else if (objective === "improve_endurance") {
-        if (meal.carbsG >= 60) score += 3;
-        if (meal.targetGoal === "performance") score += 3;
-        if (meal.effortCategory !== "light") score += 2;
-      } else {
-        if (meal.calories >= 430 && meal.calories <= 680) score += 2;
-        if (meal.proteinG >= 28) score += 2;
-        if (meal.effortCategory === "medium") score += 2;
-      }
-
-      if (sport && ["running", "cycling", "swimming", "rowing"].includes(sport)) {
-        if (meal.carbsG >= 55) score += 2;
-        if (meal.targetGoal !== "recovery") score += 1;
-      }
-
-      if (sport === "strength") {
-        if (meal.proteinG >= 32) score += 2;
-      }
-
-      return { ...meal, score };
-    })
-    .sort((left, right) => {
-      if (right.score !== left.score) {
-        return right.score - left.score;
-      }
-
-      return left.priceEur - right.priceEur;
-    })
-    .slice(0, 8)
-    .map((meal, index) => ({ ...meal, rank: index + 1 }));
 }
 
 function buildMenuMeals(meals: DrinkBlendRecord[]): SuggestedMeal[] {
@@ -325,7 +195,15 @@ function buildMenuMeals(meals: DrinkBlendRecord[]): SuggestedMeal[] {
 
       return left.name.localeCompare(right.name);
     })
-    .map((meal, index) => ({ ...meal, rank: index + 1, score: 0 }));
+    .map((meal, index) => ({
+      ...meal,
+      rank: index + 1,
+      score: 0,
+      fitLabel: "leger" as const,
+      fitReason: "Disponible a la borne FEATNESS.",
+      fitChips: [],
+      isRecommended: false,
+    }));
 }
 
 function getFeedbackTone(message: string | null): "neutral" | "success" | "warning" {
@@ -461,37 +339,35 @@ export default function App() {
     [age, heightCm, primaryObjective, weightKg],
   );
 
+  const sessionInsight = useMemo(
+    () =>
+      activeSession
+        ? buildWorkoutRecoveryInsight(
+            activeSession.workout,
+            profile?.primaryObjective ?? primaryObjective,
+          )
+        : null,
+    [activeSession, primaryObjective, profile?.primaryObjective],
+  );
+
   const suggestedMeals = useMemo(() => {
     if (!activeSession) {
       return [];
     }
 
-    return buildSuggestedMeals(
+    return rankMealsForWorkout(
       availableMeals,
-      activeSession.workout.goal,
+      activeSession.workout,
+      profile?.primaryObjective ?? primaryObjective,
       activeSession.recommendation.recommendedBlend,
     );
-  }, [activeSession, availableMeals]);
-
-  const objectiveMeals = useMemo(
-    () =>
-      buildObjectiveMeals(
-        availableMeals,
-        profile?.primaryObjective ?? null,
-        activeSession?.workout.sport ?? profile?.preferredSport ?? null,
-        activeSession?.workout.goal ?? profile?.preferredGoal ?? null,
-        activeSession?.recommendation.recommendedBlend ?? null,
-      ),
-    [
-      activeSession?.recommendation.recommendedBlend,
-      activeSession?.workout.goal,
-      activeSession?.workout.sport,
-      availableMeals,
-      profile?.preferredGoal,
-      profile?.preferredSport,
-      profile?.primaryObjective,
-    ],
-  );
+  }, [
+    activeSession,
+    availableMeals,
+    primaryObjective,
+    profile?.primaryObjective,
+  ]);
+  const objectiveMeals = useMemo(() => suggestedMeals.slice(0, 8), [suggestedMeals]);
   const menuMeals = useMemo(() => buildMenuMeals(availableMeals), [availableMeals]);
   const hasCompletedOnboarding = Boolean(profile?.onboardingCompleted);
   const confirmedMealId = activeSession?.selectedMealBlendId ?? null;
@@ -519,14 +395,6 @@ export default function App() {
       menuMeals[0] ??
       null,
     [availableMeals, menuMeals, objectiveMeals, selectedMealId, suggestedMeals],
-  );
-  const objectiveHeading = useMemo(
-    () =>
-      getObjectiveHeading(
-        profile?.primaryObjective ?? null,
-        activeSession?.workout.sport ?? profile?.preferredSport ?? null,
-      ),
-    [activeSession?.workout.sport, profile?.preferredSport, profile?.primaryObjective],
   );
   const feedbackTone = getFeedbackTone(feedbackMessage);
   const recommendedScreen = useMemo(
@@ -1540,8 +1408,10 @@ export default function App() {
               </Text>
             </View>
             <View style={styles.summaryBannerItem}>
-              <Text style={styles.summaryBannerLabel}>Etat</Text>
-              <Text style={styles.summaryBannerValue}>OK, passe au plat</Text>
+              <Text style={styles.summaryBannerLabel}>Calories estimees</Text>
+              <Text style={styles.summaryBannerValue}>
+                {sessionInsight?.caloriesBurnedEstimate ?? activeSession.recommendation.caloriesBurned} kcal
+              </Text>
             </View>
           </View>
         </AnimatedSection>
@@ -1551,9 +1421,21 @@ export default function App() {
             objectiveMeals={objectiveMeals}
             allMeals={menuMeals}
             goal={activeSession.workout.goal}
-            objectiveTitle={objectiveHeading.title}
-            objectiveCopy={objectiveHeading.copy}
+            objectiveTitle={sessionInsight?.focusTitle ?? "Focus FEATNESS"}
+            objectiveCopy={sessionInsight?.focusCopy ?? "Le repas est classe selon ta seance et ton objectif."}
             menuTitle="Tous les plats FEATNESS disponibles a la borne"
+            sessionCalories={
+              sessionInsight?.caloriesBurnedEstimate ?? activeSession.recommendation.caloriesBurned
+            }
+            sessionEffortLabel={
+              sessionInsight
+                ? getEffortCategoryLabel(sessionInsight.effortCategory)
+                : getEffortCategoryLabel(suggestedMeals[0]?.effortCategory ?? "medium")
+            }
+            sessionFocusTitle={sessionInsight?.focusTitle ?? "Focus FEATNESS"}
+            sessionFocusCopy={
+              sessionInsight?.focusCopy ?? "Le classement prend en compte ta seance, ton objectif et les calories estimees."
+            }
             selectedMealId={selectedMealId}
             favoriteMealIds={profile?.favoriteMealIds ?? []}
             onSelectMeal={handleSelectMeal}

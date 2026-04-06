@@ -1,4 +1,5 @@
 import { calculateCaloriesBurned } from "./met";
+import type { EffortCategory } from "./meal-catalog";
 import type {
   BmiInsight,
   GoalKey,
@@ -7,6 +8,35 @@ import type {
   SessionSuggestion,
   UserWorkoutInput,
 } from "./types";
+
+type MealCandidate = {
+  id: string;
+  name: string;
+  priceEur: number;
+  targetGoal: string;
+  effortCategory: EffortCategory;
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+};
+
+export type WorkoutRecoveryInsight = {
+  caloriesBurnedEstimate: number;
+  effortCategory: EffortCategory;
+  focusTitle: string;
+  focusCopy: string;
+  focusTags: string[];
+};
+
+export type RankedMeal<T extends MealCandidate> = T & {
+  score: number;
+  rank: number;
+  fitLabel: "ideal" | "solide" | "leger";
+  fitReason: string;
+  fitChips: string[];
+  isRecommended: boolean;
+};
 
 function roundToNearest(value: number, step: number): number {
   return Math.round(value / step) * step;
@@ -44,6 +74,235 @@ function getBlendLabel(goal: GoalKey, durationMin: number, calories: number): st
   return "Skyr bowl banane-flocons d'avoine";
 }
 
+export function getWorkoutEffortCategory(
+  input: Pick<UserWorkoutInput, "intensity" | "durationMin">,
+  caloriesBurned: number,
+): EffortCategory {
+  if (
+    input.intensity === "intense" ||
+    input.durationMin >= 75 ||
+    caloriesBurned >= 650
+  ) {
+    return "intense";
+  }
+
+  if (
+    input.intensity === "moderate" ||
+    input.durationMin >= 40 ||
+    caloriesBurned >= 320
+  ) {
+    return "medium";
+  }
+
+  return "light";
+}
+
+function getFocusTitle(goal: GoalKey, objective: PrimaryObjectiveKey | null): string {
+  if (goal === "performance") {
+    return "Recharger en glucides";
+  }
+
+  if (goal === "recovery") {
+    return objective === "gain_muscle" ? "Recuperer et reconstruire" : "Recuperer musculairement";
+  }
+
+  if (objective === "lose_weight") {
+    return "Hydrater sans surcharger";
+  }
+
+  return "Hydrater et repartir proprement";
+}
+
+function getFocusCopy(
+  goal: GoalKey,
+  objective: PrimaryObjectiveKey | null,
+  effortCategory: EffortCategory,
+): string {
+  if (goal === "performance") {
+    return effortCategory === "intense"
+      ? "Ta seance a vide une bonne partie du glycogene. Priorite aux glucides utiles, avec assez de proteines pour repartir vite."
+      : "L'objectif principal est de remettre de l'energie rapidement, sans oublier une base proteique propre.";
+  }
+
+  if (goal === "recovery") {
+    return objective === "gain_muscle"
+      ? "Tu privilegies la recuperation musculaire. On pousse les proteines, puis assez de glucides pour absorber la seance."
+      : "La priorite est de recuperer sans lourdeur : proteines maigres, glucides clairs et bonne rehydratation.";
+  }
+
+  return objective === "lose_weight"
+    ? "On vise un repas plus propre et digeste, avec hydration et proteines, sans remonter trop haut en calories."
+    : "L'hydratation reste prioritaire, avec juste ce qu'il faut de glucides et de proteines pour stabiliser la recuperation.";
+}
+
+export function buildWorkoutRecoveryInsight(
+  input: UserWorkoutInput,
+  objective: PrimaryObjectiveKey | null = null,
+): WorkoutRecoveryInsight {
+  const caloriesBurnedEstimate = calculateCaloriesBurned(input);
+  const effortCategory = getWorkoutEffortCategory(input, caloriesBurnedEstimate);
+
+  return {
+    caloriesBurnedEstimate,
+    effortCategory,
+    focusTitle: getFocusTitle(input.goal, objective),
+    focusCopy: getFocusCopy(input.goal, objective, effortCategory),
+    focusTags: [
+      `${caloriesBurnedEstimate} kcal estimees`,
+      effortCategory === "light"
+        ? "Effort leger"
+        : effortCategory === "medium"
+          ? "Effort moyen"
+          : "Effort intense",
+      input.goal === "performance"
+        ? "Priorite glucides"
+        : input.goal === "recovery"
+          ? "Priorite proteines"
+          : "Priorite hydratation",
+    ],
+  };
+}
+
+function getMealReason(
+  meal: MealCandidate,
+  input: UserWorkoutInput,
+  objective: PrimaryObjectiveKey | null,
+): { reason: string; chips: string[] } {
+  const chips: string[] = [];
+
+  if (meal.targetGoal === input.goal) {
+    chips.push(
+      input.goal === "performance"
+        ? "Bon niveau de glucides"
+        : input.goal === "recovery"
+          ? "Bon soutien recovery"
+          : "Bon pour l'hydratation",
+    );
+  }
+
+  if (input.sport === "strength" || objective === "gain_muscle") {
+    if (meal.proteinG >= 32) {
+      chips.push("Proteines solides");
+    }
+  } else if (
+    ["running", "cycling", "swimming", "rowing", "football", "basketball"].includes(input.sport)
+  ) {
+    if (meal.carbsG >= 55) {
+      chips.push("Recharge glucidique");
+    }
+  }
+
+  if (objective === "lose_weight" && meal.calories <= 560) {
+    chips.push("Plus leger");
+  }
+
+  if (meal.effortCategory === "intense") {
+    chips.push("Repas complet");
+  }
+
+  const reason =
+    chips[0] ??
+    (meal.targetGoal === input.goal
+      ? "Bien cale sur la seance."
+      : "Alternative acceptable pour cette seance.");
+
+  return {
+    reason,
+    chips: chips.slice(0, 3),
+  };
+}
+
+export function rankMealsForWorkout<T extends MealCandidate>(
+  meals: T[],
+  input: UserWorkoutInput,
+  objective: PrimaryObjectiveKey | null = null,
+  recommendedBlend: string | null = null,
+): RankedMeal<T>[] {
+  const caloriesBurned = calculateCaloriesBurned(input);
+  const effortCategory = getWorkoutEffortCategory(input, caloriesBurned);
+  const carbTarget =
+    effortCategory === "light" ? 40 : effortCategory === "medium" ? 58 : 76;
+  const proteinTarget =
+    effortCategory === "light" ? 24 : effortCategory === "medium" ? 32 : 38;
+
+  const ranked = meals
+    .map((meal) => {
+      let score = 0;
+
+      if (recommendedBlend && meal.name === recommendedBlend) {
+        score += 8;
+      }
+
+      if (meal.targetGoal === input.goal) {
+        score += 5;
+      }
+
+      if (meal.effortCategory === effortCategory) {
+        score += 4;
+      } else if (
+        (effortCategory === "medium" && meal.effortCategory !== "intense") ||
+        (effortCategory === "intense" && meal.effortCategory === "medium")
+      ) {
+        score += 2;
+      }
+
+      score += Math.max(0, 6 - Math.abs(meal.carbsG - carbTarget) / 8);
+      score += Math.max(0, 6 - Math.abs(meal.proteinG - proteinTarget) / 5);
+
+      if (objective === "lose_weight") {
+        if (meal.calories <= 580) score += 4;
+        if (meal.proteinG >= 28) score += 2;
+      } else if (objective === "gain_muscle") {
+        if (meal.proteinG >= 35) score += 4;
+        if (meal.calories >= 600) score += 3;
+        if (meal.carbsG >= 55) score += 2;
+      } else if (objective === "improve_endurance") {
+        if (meal.carbsG >= 60) score += 4;
+        if (meal.targetGoal === "performance") score += 3;
+      } else {
+        if (meal.calories >= 430 && meal.calories <= 720) score += 2;
+      }
+
+      if (["running", "cycling", "swimming", "rowing"].includes(input.sport)) {
+        if (meal.carbsG >= 55) score += 2;
+      }
+
+      if (input.sport === "strength" && meal.proteinG >= 32) {
+        score += 2;
+      }
+
+      const { reason, chips } = getMealReason(meal, input, objective);
+
+      return {
+        ...meal,
+        score: Number(score.toFixed(1)),
+        fitReason: reason,
+        fitChips: chips,
+      };
+    })
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return left.priceEur - right.priceEur;
+    });
+
+  const topScore = ranked[0]?.score ?? 0;
+
+  return ranked.map((meal, index) => ({
+    ...meal,
+    rank: index + 1,
+    fitLabel:
+      meal.score >= topScore - 1.5
+        ? "ideal"
+        : meal.score >= topScore - 4
+          ? "solide"
+          : "leger",
+    isRecommended: index < 3,
+  }));
+}
+
 export function calculateBmi(weightKg: number, heightCm: number): BmiInsight | null {
   if (weightKg <= 0 || heightCm <= 0) {
     return null;
@@ -78,8 +337,30 @@ export function buildSessionSuggestions(input: SuggestionInput): SessionSuggesti
   const bmiInsight = calculateBmi(input.weightKg, input.heightCm);
   const bmiCategory = bmiInsight?.category ?? "healthy";
 
+  const enrichSuggestions = (suggestions: SessionSuggestion[]): SessionSuggestion[] =>
+    suggestions.map((suggestion) => {
+      const insight = buildWorkoutRecoveryInsight(
+        {
+          sport: suggestion.sport,
+          intensity: suggestion.intensity,
+          durationMin: suggestion.durationMin,
+          weightKg: input.weightKg,
+          goal: suggestion.goal,
+        },
+        input.primaryObjective,
+      );
+
+      return {
+        ...suggestion,
+        estimatedCaloriesBurned: insight.caloriesBurnedEstimate,
+        effortCategory: insight.effortCategory,
+        focusTitle: insight.focusTitle,
+        focusCopy: insight.focusCopy,
+      };
+    });
+
   if (input.primaryObjective === "lose_weight") {
-    return [
+    return enrichSuggestions([
       {
         key: "lean-burn",
         title: "Seance brule-graisse",
@@ -113,11 +394,11 @@ export function buildSessionSuggestions(input: SuggestionInput): SessionSuggesti
         durationMin: 30,
         goal: "hydration",
       },
-    ];
+    ]);
   }
 
   if (input.primaryObjective === "gain_muscle") {
-    return [
+    return enrichSuggestions([
       {
         key: "muscle-builder",
         title: "Construction musculaire",
@@ -148,11 +429,11 @@ export function buildSessionSuggestions(input: SuggestionInput): SessionSuggesti
         durationMin: 25,
         goal: "hydration",
       },
-    ];
+    ]);
   }
 
   if (input.primaryObjective === "improve_endurance") {
-    return [
+    return enrichSuggestions([
       {
         key: "aerobic-base",
         title: "Base endurance",
@@ -183,10 +464,10 @@ export function buildSessionSuggestions(input: SuggestionInput): SessionSuggesti
         durationMin: 35,
         goal: "hydration",
       },
-    ];
+    ]);
   }
 
-  return [
+  return enrichSuggestions([
     {
       key: "balanced-rhythm",
       title: "Rythme equilibre",
@@ -217,7 +498,7 @@ export function buildSessionSuggestions(input: SuggestionInput): SessionSuggesti
       durationMin: 25,
       goal: "hydration",
     },
-  ];
+  ]);
 }
 
 export function buildNutritionRecommendation(
