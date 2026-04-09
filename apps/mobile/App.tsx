@@ -1170,18 +1170,43 @@ function AppShell() {
     setEmail(TEST_USER_EMAIL);
     setPassword(TEST_USER_PASSWORD);
 
-    const { error } = await supabaseClient.auth.signInWithPassword({
+    await supabaseClient.auth.signOut();
+
+    let signInResult = await supabaseClient.auth.signInWithPassword({
       email: TEST_USER_EMAIL,
       password: TEST_USER_PASSWORD,
     });
 
+    if (
+      signInResult.error &&
+      ["invalid_credentials", "email_not_confirmed", "invalid login credentials"].some((value) =>
+        `${signInResult.error?.code ?? ""} ${signInResult.error?.message ?? ""}`
+          .toLowerCase()
+          .includes(value),
+      )
+    ) {
+      const signUpResult = await supabaseClient.auth.signUp({
+        email: TEST_USER_EMAIL,
+        password: TEST_USER_PASSWORD,
+      });
+
+      if (!signUpResult.error) {
+        signInResult = await supabaseClient.auth.signInWithPassword({
+          email: TEST_USER_EMAIL,
+          password: TEST_USER_PASSWORD,
+        });
+      }
+    }
+
     setIsBusy(false);
-    if (!error) {
+    if (!signInResult.error) {
       setCurrentScreen("home");
       scrollToTop();
     }
     setFeedbackMessage(
-      error ? error.message : "Compte test charge. Le parcours FEATNESS est pret a etre joue.",
+      signInResult.error
+        ? signInResult.error.message
+        : "Compte test charge. Le parcours FEATNESS est pret a etre joue.",
     );
   }
 
